@@ -77,6 +77,14 @@ jobs:
           node bin/argus.js scan tests/fixtures/demo-site \
             --no-history --html _site/demo.html --silent || true
 
+          # Liste de precache du service worker, generee depuis le site
+          # assemble : le site est installable et fonctionne hors ligne, ce
+          # qui compte ici parce que l'analyse tourne entierement dans
+          # l'onglet. Une liste ecrite a la main aurait pourri au premier
+          # module ajoute, et un precache incomplet ne casse que le mode hors
+          # ligne — c'est-a-dire ce que personne ne teste avant de livrer.
+          node scripts/site-precache.js _site
+
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

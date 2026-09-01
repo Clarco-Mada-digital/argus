@@ -204,6 +204,18 @@ Ces préfixes ne sont **pas des espaces de noms : ce sont des publications**. La
 | **iOS natif** (Swift, Obj-C) | `UserDefaults` pour un secret, `kSecAttrAccessibleAlways`, certificat serveur accepté sans `SecTrustEvaluate`. |
 | **Manifestes Android / iOS** | Règle **transverse** sur `AndroidManifest.xml` et `Info.plist`, quel que soit l'outil qui les a générés : trafic en clair, `debuggable`, `allowBackup`, `NSAllowsArbitraryLoads`. Couvre donc aussi Capacitor, Ionic, Kotlin et Swift natifs. |
 
+#### Un script isolé ne change pas la nature du projet
+
+Signalé sur un vrai projet Expo : Argus le classait **Python**. Un unique script de publication en `.py` suffisait — la règle était « au moins un fichier Python ».
+
+Il faut désormais soit un manifeste Python (`requirements.txt`, `pyproject.toml`, `Pipfile`, `setup.py`…), soit une présence qui pèse réellement dans le code applicatif (≥ 3 fichiers **et** ≥ 15 % des lignes). En prime, la répartition des langages ne compte plus le JSON ni le YAML, qui écrasaient la part du code réel, et le rapport affiche maintenant en une ligne **ce que le projet est** :
+
+```
+Projet        React Native (Expo) · mobile
+Langages      typescript 65%  python 19%  javascript 15%
+Detecte       react, react-native, expo, node
+```
+
 #### Une application mobile n'est pas un site web
 
 React Native dépend de `react`. Sans distinction, Argus en concluait « SPA » et reprochait à une application mobile son `robots.txt` absent, son `sitemap.xml` absent et son défaut de rendu serveur — quatre constats sur cinq, tous absurdes.
@@ -215,6 +227,16 @@ Argus détecte désormais la **plateforme visée** (`web`, `mobile`, `desktop`),
 Les imports sont résolus selon les conventions de chaque écosystème : **PSR-4** pour PHP (`use App\Http\Controllers\X` → `app/Http/Controllers/X.php`), modules Python, autoload Rails. Sans quoi un projet entier paraîtrait mort.
 
 Pour ajouter un framework : un module dans `src/rules/frameworks/`, référencé dans son index.
+
+## Le site est installable et fonctionne hors ligne
+
+L'analyseur en ligne tourne **entièrement dans l'onglet** : aucun fichier ne part sur le réseau. Il n'y avait donc aucune raison qu'il ait besoin du réseau pour se charger.
+
+Le site est une PWA : « Installer l'application » dans la barre d'adresse, ou depuis le bouton de la page d'accueil. Une fois installée, elle analyse vos dossiers sans aucune connexion — ce qui rend la promesse de confidentialité vérifiable plutôt que déclarative : coupez le Wi-Fi, l'outil marche toujours.
+
+Le service worker précache 83 ressources (≈ 660 Ko), dont les 62 modules du cœur d'Argus. **La liste est générée** au déploiement par `scripts/site-precache.js`, jamais écrite à la main, et la version du cache est l'empreinte du contenu : un octet modifié déclenche la mise à jour, deux déploiements identiques ne la déclenchent pas.
+
+Vérifié en conditions réelles, pas en principe : profil de navigateur neuf, installation, **serveur éteint**, puis analyse complète d'un projet — la détection Expo et les six règles remontent normalement. Ce test a d'ailleurs révélé deux bugs invisibles autrement : `node:http` et `node:readline/promises` manquaient à la carte d'imports (un seul spécificateur absent casse **toute** la chaîne, et l'erreur ne nomme que le module d'entrée), et `terminal.js` lisait `process` au chargement. `scripts/lint.js` garde maintenant l'invariant : tout spécificateur `node:` atteignable depuis `src/` doit avoir son bouchon.
 
 ### Qualité et dépendances
 

@@ -1,7 +1,17 @@
 import { CATEGORIES, SEVERITIES, SEVERITY_LABEL_FR } from '../core/severity.js';
 
-/** Couleurs ANSI, desactivees automatiquement hors TTY ou avec NO_COLOR. */
-const enabled = process.stdout.isTTY && !process.env.NO_COLOR && process.env.TERM !== 'dumb';
+/**
+ * Couleurs ANSI, desactivees automatiquement hors TTY ou avec NO_COLOR.
+ *
+ * L'acces passe par `globalThis` : ce module est atteint depuis le navigateur
+ * via `src/index.js`, ou `process` n'existe pas. Un rendu de rapport n'a pas a
+ * echouer *a l'import* selon l'environnement — et l'erreur qui en resultait ne
+ * nommait meme pas ce fichier.
+ */
+const processus = globalThis.process;
+const enabled = Boolean(
+  processus?.stdout?.isTTY && !processus.env.NO_COLOR && processus.env.TERM !== 'dumb',
+);
 
 const code = (open, close) => (text) => (enabled ? `[${open}m${text}[${close}m` : String(text));
 
@@ -53,13 +63,25 @@ export function renderReport(result, { verbose = false, maxPerRule = 3, maxFindi
 
 function renderHeader(result) {
   const { project } = result;
-  const stack = project.stack.slice(0, 4).map((s) => `${s.language} ${percent(s.lines, totalLines(project))}`).join('  ');
+  // On ne classe que le code applicatif : compter le JSON et le YAML ecrasait
+  // la part reelle des langages et faisait remonter des scripts isoles.
+  const code = (project.stack || []).filter((s) => s.code !== false);
+  const totalCode = code.reduce((somme, s) => somme + s.lines, 0);
+  const stack = code
+    .slice(0, 4)
+    .map((s) => `${s.language} ${percent(s.lines, totalCode)}`)
+    .join('  ');
+
+  const plateformes = { web: 'web', mobile: 'mobile', desktop: 'bureau', inconnu: null };
+  const cibles = (project.platforms || []).map((p) => plateformes[p]).filter(Boolean);
+  const identite = [project.description, cibles.join(' et ')].filter(Boolean).join(color.dim(' · '));
   const lines = [
     '',
     `${color.bold(color.cyan('  ARGUS'))} ${color.dim('· analyse de projet')}`,
     color.dim(`  ${result.root}`),
     '',
     `  ${color.dim('Fichiers')}      ${project.analyzed} analyses ${color.dim(`(${project.files} indexes, ${project.skipped} ignores)`)}`,
+    project.description ? `  ${color.dim('Projet')}        ${identite}` : null,
     stack ? `  ${color.dim('Langages')}      ${stack}` : null,
     project.frameworks.length ? `  ${color.dim('Detecte')}       ${project.frameworks.slice(0, 8).join(', ')}` : null,
     `  ${color.dim('Duree')}         ${(result.durationMs / 1000).toFixed(2)} s`,

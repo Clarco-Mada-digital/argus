@@ -148,3 +148,46 @@ test('code mort : pas de verdict sur les langages a imports par module', async (
   const site = await analyser('demo-site');
   assert.ok(site.findings.some((f) => f.ruleId === 'DEAD-FILE'));
 });
+
+test('detection : un script isole ne change pas la nature du projet', async () => {
+  // Signale sur un vrai projet Expo : un unique script de publication en
+  // Python suffisait a faire classer l'application en projet Python.
+  const rapport = await analyser('expo');
+
+  assert.equal(rapport.project.description, 'React Native (Expo)');
+  assert.deepEqual(rapport.project.platforms, ['mobile']);
+  assert.ok(
+    !rapport.project.frameworks.includes('python'),
+    'un script utilitaire ne fait pas un projet Python',
+  );
+  assert.ok(rapport.project.frameworks.includes('expo'));
+
+  // Le fichier reste compte dans la repartition : il existe vraiment.
+  assert.ok(rapport.project.stack.some((s) => s.language === 'python'));
+  // Mais le JSON ne pese plus dans le classement des langages.
+  assert.equal(rapport.project.stack.find((s) => s.language === 'json')?.code, false);
+});
+
+test('detection : un vrai projet Python reste un projet Python', async () => {
+  const django = await analyser('django');
+  assert.ok(django.project.frameworks.includes('python'));
+  assert.equal(django.project.description, 'Django');
+  assert.deepEqual(django.project.platforms, ['web']);
+});
+
+test('detection : chaque fixture est nommee pour ce qu\'elle est', async () => {
+  const attendus = {
+    flutter: ['Flutter', 'mobile'],
+    tauri: ['Tauri', 'desktop'],
+    electron: ['Electron', 'desktop'],
+    nextjs: ['Next.js', 'web'],
+    'android-kotlin': ['Android natif', 'mobile'],
+    'ios-swift': ['iOS natif', 'mobile'],
+  };
+
+  for (const [nom, [description, plateforme]] of Object.entries(attendus)) {
+    const rapport = await analyser(nom);
+    assert.equal(rapport.project.description, description, nom);
+    assert.ok(rapport.project.platforms.includes(plateforme), `${nom} : ${plateforme} attendu`);
+  }
+});

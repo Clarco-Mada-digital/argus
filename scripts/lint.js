@@ -85,6 +85,41 @@ try {
   /* hors depot Git : la verification ne s'applique pas */
 }
 
+// 5. La carte d'imports du site doit couvrir *tous* les specificateurs `node:`
+//    atteignables depuis src/. Un seul manquant fait echouer la chaine entiere
+//    d'imports, et l'erreur ne nomme que le module d'entree : le diagnostic est
+//    donc tres couteux. C'est arrive avec `node:http` et
+//    `node:readline/promises`, atteints parce que src/index.js reexporte
+//    startServer — la page d'analyse etait cassee sans que rien ne le signale.
+try {
+  const page = fs.readFileSync(path.join(RACINE, 'site/analyser.html'), 'utf8');
+  const carte = JSON.parse(page.match(/<script type="importmap">([\s\S]*?)<\/script>/)[1]).imports;
+
+  const specificateurs = new Set();
+  for (const fichier of modules.filter((f) => f.includes(`${path.sep}src${path.sep}`))) {
+    for (const m of fs.readFileSync(fichier, 'utf8').matchAll(/from\s+'(node:[^']+)'/g)) {
+      specificateurs.add(m[1]);
+    }
+  }
+
+  const absents = [...specificateurs].filter((s) => !carte[s]);
+  if (absents.length > 0) {
+    problemes.push(
+      `site/analyser.html : la carte d'imports ne couvre pas ${absents.join(', ')}.\n      ` +
+        'Ajoutez un bouchon dans site/shims/ et referencez-le : un specificateur absent\n      ' +
+        'casse tout le graphe d\'imports, et l\'erreur ne nomme que le module d\'entree.',
+    );
+  }
+
+  for (const [specificateur, cible] of Object.entries(carte)) {
+    if (!fs.existsSync(path.join(RACINE, 'site', cible.replace(/^\.\//, '')))) {
+      problemes.push(`site/analyser.html : ${specificateur} pointe vers ${cible}, qui n'existe pas.`);
+    }
+  }
+} catch (erreur) {
+  problemes.push(`site/analyser.html : carte d'imports illisible (${erreur.message}).`);
+}
+
 function relatif(fichier) {
   return path.relative(RACINE, fichier);
 }

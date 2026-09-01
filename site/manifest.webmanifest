@@ -1,0 +1,30 @@
+{
+  "name": "Argus — analyse de code",
+  "short_name": "Argus",
+  "description": "Analyse un projet local — securite, routes, code mort, SEO, design — entierement dans le navigateur. Aucun fichier n'est envoye.",
+  "id": "/argus/",
+  "start_url": "./analyser.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0b1120",
+  "theme_color": "#4c8dff",
+  "lang": "fr",
+  "dir": "ltr",
+  "categories": ["developer", "productivity", "utilities"],
+  "icons": [
+    { "src": "./icones/argus-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "./icones/argus-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "./icones/argus-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "./icones/argus.svg", "sizes": "any", "type": "image/svg+xml" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Analyser un dossier",
+      "short_name": "Analyser",
+      "description": "Choisir un projet local et lancer l'analyse",
+      "url": "./analyser.html",
+      "icons": [{ "src": "./icones/argus-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

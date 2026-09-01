@@ -21,6 +21,7 @@ export class ProjectContext {
     this.frameworks = detectFrameworks(this);
     this.platforms = detectPlatforms(this.frameworks);
     this.stack = summarizeStack(this);
+    this.description = describeProject(this);
 
     /** Rempli par l'analyseur de routes, consomme par SEO et code mort. */
     this.routes = [];
@@ -187,7 +188,25 @@ function detectFrameworks(context) {
   if (/from\s+django|import\s+django/.test(pythonHead) || hasFile(/(^|\/)manage\.py$/)) found.add('django');
   if (/from\s+fastapi|FastAPI\(/.test(pythonHead)) found.add('fastapi');
   if (/from\s+flask|Flask\(/i.test(pythonHead)) found.add('flask');
-  if (pythonSource.length > 0) found.add('python');
+
+  // Un script utilitaire ne fait pas un projet Python.
+  //
+  // La regle etait « au moins un fichier .py ». Un depot React Native qui
+  // embarque un script de publication se voyait donc classe Python — constat
+  // remonte sur un vrai projet Expo. On demande desormais soit un manifeste
+  // Python, soit une presence qui pese reellement dans le code applicatif.
+  const manifestePython =
+    Boolean(context.manifests['requirements.txt'] || context.manifests['pyproject.toml']) ||
+    hasFile(/(^|\/)(Pipfile|setup\.py|setup\.cfg|environment\.yml|conda\.yaml|tox\.ini)$/);
+  if (manifestePython || found.has('django') || found.has('flask') || found.has('fastapi')) {
+    found.add('python');
+  } else if (pythonSource.length >= 3) {
+    const lignesPython = pythonSource.reduce((total, f) => total + (f.readable ? f.lineCount : 0), 0);
+    const lignesCode = context
+      .sources({ includeTests: true })
+      .reduce((total, f) => total + (estLangageDeCode(f.language) && f.readable ? f.lineCount : 0), 0);
+    if (lignesCode > 0 && lignesPython / lignesCode >= 0.15) found.add('python');
+  }
 
   // Le manifeste natif est parfois le seul indice : un projet Tauri se
   // reconnait a son `src-tauri`, une app Android a son AndroidManifest.
@@ -247,6 +266,22 @@ function detectPlatforms(frameworks) {
   return [...cibles];
 }
 
+/**
+ * Langages de configuration et de donnees.
+ *
+ * Les compter dans la repartition fausse la lecture : un projet Expo de neuf
+ * fichiers affichait « json 32 % », ce qui ecrasait la part reelle du code
+ * applicatif et faisait remonter un script isole a un rang trompeur.
+ */
+const LANGAGES_DE_CONFIGURATION = new Set([
+  'json', 'yaml', 'toml', 'ini', 'dotenv', 'markdown', 'text', 'xml', 'plist',
+  'properties', 'lock', 'csv', 'unknown',
+]);
+
+function estLangageDeCode(langage) {
+  return !LANGAGES_DE_CONFIGURATION.has(langage);
+}
+
 function summarizeStack(context) {
   const counts = [...context.byLanguage.entries()]
     .filter(([lang]) => lang !== 'unknown')
@@ -255,9 +290,59 @@ function summarizeStack(context) {
       files: files.length,
       lines: files.reduce((sum, f) => sum + (f.readable ? f.lineCount : 0), 0),
       bytes: files.reduce((sum, f) => sum + f.size, 0),
+      code: estLangageDeCode(lang),
     }))
     .sort((a, b) => b.lines - a.lines);
   return counts;
+}
+
+/**
+ * Ce que le projet *est*, en une ligne.
+ *
+ * La liste brute des frameworks detectes les met tous sur le meme plan :
+ * « react, react-native, expo, node, python » ne dit pas qu'il s'agit d'une
+ * application mobile Expo. L'ordre va du plus specifique au plus general,
+ * et le premier trouve gagne.
+ */
+const IDENTITES = [
+  { id: 'expo', label: 'React Native (Expo)' },
+  { id: 'react-native', label: 'React Native' },
+  { id: 'flutter', label: 'Flutter' },
+  { id: 'capacitor', label: 'Capacitor' },
+  { id: 'ionic', label: 'Ionic' },
+  { id: 'tauri', label: 'Tauri' },
+  { id: 'electron', label: 'Electron' },
+  { id: 'nextjs', label: 'Next.js' },
+  { id: 'nuxt', label: 'Nuxt' },
+  { id: 'sveltekit', label: 'SvelteKit' },
+  { id: 'remix', label: 'Remix' },
+  { id: 'gatsby', label: 'Gatsby' },
+  { id: 'astro', label: 'Astro' },
+  { id: 'angular', label: 'Angular' },
+  { id: 'nestjs', label: 'NestJS' },
+  { id: 'django', label: 'Django' },
+  { id: 'fastapi', label: 'FastAPI' },
+  { id: 'flask', label: 'Flask' },
+  { id: 'laravel', label: 'Laravel' },
+  { id: 'symfony', label: 'Symfony' },
+  { id: 'rails', label: 'Ruby on Rails' },
+  { id: 'spring', label: 'Spring Boot' },
+  { id: 'express', label: 'Express' },
+  { id: 'fastify', label: 'Fastify' },
+  { id: 'koa', label: 'Koa' },
+  { id: 'react', label: 'React' },
+  { id: 'vue', label: 'Vue' },
+  { id: 'svelte', label: 'Svelte' },
+  { id: 'android', label: 'Android natif' },
+  { id: 'ios', label: 'iOS natif' },
+  { id: 'static-site', label: 'Site statique' },
+];
+
+function describeProject(context) {
+  const identite = IDENTITES.find((candidat) => context.frameworks.includes(candidat.id));
+  const principal = context.stack.find((s) => s.code);
+  if (identite) return identite.label;
+  return principal ? `Projet ${principal.language}` : 'Projet';
 }
 
 /** Parseur YAML minimal : suffisant pour pubspec.yaml (cles/valeurs, 1 niveau). */

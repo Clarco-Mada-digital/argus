@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Argus">
+  <rect width="512" height="512" fill="#2f6ede"/>
+  <path d="M110 256 Q256 130 402 256 Q256 382 110 256 Z" fill="#fff"/>
+  <circle cx="256" cy="256" r="54" fill="#2f6ede"/>
+  <circle cx="256" cy="256" r="21" fill="#0b1120"/>
+  <circle cx="235" cy="235" r="11" fill="#fff" opacity=".85"/>
+</svg>

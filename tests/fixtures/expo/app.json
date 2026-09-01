@@ -1,0 +1,10 @@
+{
+  "expo": {
+    "name": "mon-app-expo",
+    "slug": "mon-app-expo",
+    "scheme": "monapp",
+    "platforms": ["ios", "android"],
+    "ios": { "supportsTablet": true },
+    "android": { "package": "com.exemple.monapp" }
+  }
+}

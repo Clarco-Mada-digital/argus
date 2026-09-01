@@ -108,6 +108,7 @@ export class Engine {
         truncated,
         frameworks: context.frameworks,
         platforms: context.platforms,
+        description: context.description,
         stack: context.stack,
         dependencies: [...context.dependencies.values()],
       },

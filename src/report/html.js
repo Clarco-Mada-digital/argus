@@ -61,6 +61,8 @@ function compact(result) {
       analyzed: result.project.analyzed,
       skipped: result.project.skipped,
       frameworks: result.project.frameworks,
+      description: result.project.description,
+      platforms: result.project.platforms,
       stack: result.project.stack.slice(0, 12),
       dependencies: result.project.dependencies.length,
     },
@@ -219,6 +221,7 @@ input[type="search"] { flex: 1; min-width: 200px; }
 .chip.low[aria-pressed="true"] { color: var(--low); background: color-mix(in srgb, var(--low) 12%, transparent); }
 .chip.info[aria-pressed="true"] { color: var(--info); background: color-mix(in srgb, var(--info) 12%, transparent); }
 
+.identite-projet { margin: 0 0 var(--space-4); font-size: 18px; font-weight: 600; color: var(--text); }
 .group { margin-bottom: var(--space-4); border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); overflow: hidden; }
 .group > summary {
   padding: var(--space-3) var(--space-4); cursor: pointer; display: flex; align-items: center; gap: var(--space-3);
@@ -582,8 +585,21 @@ const SCRIPT = String.raw`
   }
 
   function panelProject() {
-    const totalLines = data.project.stack.reduce((s, x) => s + x.lines, 0) || 1;
+    // Seul le code applicatif compte dans « lignes de code » et dans les parts :
+    // inclure le JSON et le YAML ecrasait la repartition reelle.
+    const code = data.project.stack.filter((s) => s.code !== false);
+    const totalLines = code.reduce((s, x) => s + x.lines, 0) || 1;
+    const noms = { web: 'web', mobile: 'mobile', desktop: 'bureau' };
+    const cibles = (data.project.platforms || []).map((p) => noms[p]).filter(Boolean);
     return el('div', {}, [
+      data.project.description
+        ? el('p', {
+            class: 'identite-projet',
+            text: cibles.length
+              ? data.project.description + ' — application ' + cibles.join(' et ')
+              : data.project.description,
+          })
+        : null,
       el('div', { class: 'stats' }, [
         stat(data.project.analyzed, 'fichiers analyses'),
         stat(totalLines.toLocaleString('fr-FR'), 'lignes de code'),
@@ -593,7 +609,7 @@ const SCRIPT = String.raw`
       el('div', { class: 'group' }, [
         el('table', {}, [
           el('thead', {}, [el('tr', {}, [el('th', { text: 'Langage' }), el('th', { text: 'Fichiers' }), el('th', { text: 'Lignes' }), el('th', { text: 'Part' })])]),
-          el('tbody', {}, data.project.stack.map((s) => el('tr', {}, [
+          el('tbody', {}, code.map((s) => el('tr', {}, [
             el('td', { text: s.language }),
             el('td', { text: s.files }),
             el('td', { text: s.lines.toLocaleString('fr-FR') }),
