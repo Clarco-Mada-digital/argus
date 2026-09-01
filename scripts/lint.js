@@ -60,20 +60,25 @@ for (const fichier of modules) {
   });
 }
 
-// 4. Un fichier de test exclu de Git est invisible : les tests passent en local
-//    et echouent sur un clone frais. C'est arrive une fois — avec la regle
-//    `*.key` du .gitignore, qui masquait une fixture Rails.
+// 4. Un fichier de test *ignore* par Git est invisible : les tests passent en
+//    local et echouent sur un clone frais. C'est arrive avec la regle `*.key`
+//    du .gitignore, qui masquait une fixture Rails.
+//    On interroge Git sur ce qu'il ignore, et non sur ce qu'il suit : un
+//    fichier simplement pas encore ajoute n'est pas un probleme.
 try {
-  const suivis = new Set(
-    execFileSync('git', ['ls-files', 'tests'], { cwd: RACINE, encoding: 'utf8' }).split('\n').filter(Boolean),
-  );
-  const surDisque = fichiers(path.join(RACINE, 'tests'), /./).map(relatif);
-  const invisibles = surDisque.filter((f) => !suivis.has(f) && !f.includes('node_modules'));
+  const ignores = execFileSync(
+    'git',
+    ['ls-files', '--others', '--ignored', '--exclude-standard', '--', 'tests'],
+    { cwd: RACINE, encoding: 'utf8' },
+  )
+    .split('\n')
+    .filter(Boolean);
 
-  if (invisibles.length > 0) {
+  if (ignores.length > 0) {
     problemes.push(
-      'fichiers de test presents en local mais exclus de Git — ils manqueront ' +
-        `sur un clone frais :\n      ${invisibles.join('\n      ')}`,
+      'fichiers de test exclus par le .gitignore — ils manqueront sur un clone ' +
+        `frais :\n      ${ignores.join('\n      ')}\n      ` +
+        'Construisez ce scenario a l\'execution plutot que d\'ajouter une exception.',
     );
   }
 } catch {

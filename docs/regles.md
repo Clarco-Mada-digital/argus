@@ -252,6 +252,31 @@ Les vues `.erb` sont analysées comme du HTML. Le N+1 est vu malgré la syntaxe 
 
 ---
 
+## Express — `EXPRESS-*`
+
+| Règle | Gravité | Détecte |
+|---|---|---|
+| `EXPRESS-STATIC-DOTFILES` | critique | `dotfiles: 'allow'` sert les fichiers cachés du dossier statique |
+| `EXPRESS-STACK-LEAK` | élevé | `err.stack` dans une réponse HTTP |
+| `EXPRESS-SESSION-COOKIE` | élevé / moyen | Cookie de session sans `secure`, `httpOnly` ou `sameSite` |
+| `EXPRESS-NO-BODY-LIMIT` | moyen | `express.json()` sans `limit` déclarée |
+| `EXPRESS-SESSION-UNINITIALIZED` | faible | `saveUninitialized: true` : une session par visiteur, robots compris |
+
+---
+
+## Next.js — `NEXTJS-*`
+
+| Règle | Gravité | Détecte |
+|---|---|---|
+| `NEXTJS-PUBLIC-SECRET` | critique | Variable `NEXT_PUBLIC_*` au nom sensible : inlinée dans le bundle navigateur |
+| `NEXTJS-IGNORE-TYPES` | élevé | `typescript.ignoreBuildErrors: true` |
+| `NEXTJS-IMAGE-WILDCARD` | élevé | `images.domains: ['*']` |
+| `NEXTJS-IGNORE-LINT` · `NEXTJS-NO-HEADERS` · `NEXTJS-API-NO-METHOD-CHECK` | moyen | Garde-fous désactivés, en-têtes absents, méthode HTTP non vérifiée |
+
+Le routeur `app/` déclare une fonction par méthode (`export async function POST`) : la vérification de méthode ne s'y applique pas.
+
+---
+
 ## Exploration HTTP — `CRAWL-*`
 
 Ces règles ne s'activent qu'avec `argus crawl <url>` ou `--crawl <url>`. Ce sont des **faits observés** sur votre serveur, pas des déductions : toutes portent la confiance `certain`.

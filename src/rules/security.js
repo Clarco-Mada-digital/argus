@@ -504,7 +504,10 @@ export const CONFIG_SECURITY_RULES = [
     id: 'SEC-ENV-COMMITTED',
     title: 'Fichier .env versionne',
     severity: 'critical',
-    files: /(^|\/)\.env(\.|$)(?!example|sample|template|dist)/,
+    // Le suffixe d'exemple peut etre precede d'autres segments :
+    // `.env.local.example` est un modele, pas un fichier d'environnement.
+    files: /(^|\/)\.env(\.[\w.-]*)?$/,
+    exclude: /\.(example|sample|template|dist|md|txt)$/i,
     check: (content) => /=\S/.test(content),
     message: 'Un fichier .env contenant des valeurs est present dans le depot.',
     suggestion: 'Ajoutez .env au .gitignore, faites tourner les secrets exposes, et versionnez un .env.example vide.',

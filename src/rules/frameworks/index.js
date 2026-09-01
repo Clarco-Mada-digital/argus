@@ -2,6 +2,8 @@ import django from './django.js';
 import laravel from './laravel.js';
 import rails from './rails.js';
 import spring from './spring.js';
+import express from './express.js';
+import nextjs from './nextjs.js';
 
 /**
  * Packs de regles specifiques a un framework.
@@ -14,4 +16,4 @@ import spring from './spring.js';
  * Pour ajouter un framework : creez un module exportant
  * { id, label, appliesTo(context), run(context, report) } et referencez-le ici.
  */
-export const FRAMEWORK_PACKS = [django, laravel, rails, spring];
+export const FRAMEWORK_PACKS = [django, laravel, rails, spring, express, nextjs];

@@ -109,7 +109,7 @@ Images et ressources trop lourdes (avec le temps de chargement estimé en 3G), S
 
 Certaines vérifications n'ont de sens que pour un framework donné, et demandent de croiser plusieurs fichiers. Elles sont regroupées en **packs** activés automatiquement.
 
-Trois packs sont livrés — **Django**, **Laravel** et **Rails** — chacun validé contre un projet réaliste construit pour l'occasion, avec les faux positifs mesurés avant livraison.
+Six packs sont livrés — **Django**, **Laravel**, **Rails**, **Spring**, **Express** et **Next.js** — chacun validé contre un projet réaliste construit pour l'occasion, avec les faux positifs mesurés avant livraison.
 
 **Django** (7 règles) :
 
@@ -143,6 +143,25 @@ S'y ajoutent, pour Django : routes extraites de `path()`, `re_path()` et `includ
 | `RAILS-CSRF-DISABLED` | `skip_before_action :verify_authenticity_token` |
 | `RAILS-PERMIT-ALL` | `params.permit!` — paramètres forts contournés |
 | `RAILS-HTML-SAFE` | `.html_safe` / `raw()` sur du contenu interpolé |
+
+**Express** (4 règles) :
+
+| Règle | Détecte |
+|---|---|
+| `EXPRESS-STATIC-DOTFILES` | **critique** — `dotfiles: 'allow'` sert `.env` et `.git/config` |
+| `EXPRESS-STACK-LEAK` | `err.stack` renvoyé au client : chemins serveur et versions |
+| `EXPRESS-SESSION-COOKIE` | Cookie de session sans `secure` / `httpOnly` / `sameSite` |
+| `EXPRESS-NO-BODY-LIMIT` | Corps de requête sans limite de taille |
+
+**Next.js** (5 règles) :
+
+| Règle | Détecte |
+|---|---|
+| `NEXTJS-PUBLIC-SECRET` | **critique** — `NEXT_PUBLIC_STRIPE_SECRET_KEY` est inlinée dans le bundle : lisible via « afficher le code source » |
+| `NEXTJS-IGNORE-TYPES` | `ignoreBuildErrors: true` — publie du code que le compilateur refuse |
+| `NEXTJS-IMAGE-WILDCARD` | `images.domains: ['*']` — relais d'images ouvert |
+| `NEXTJS-API-NO-METHOD-CHECK` | Route d'API traitant GET comme POST |
+| `NEXTJS-IGNORE-LINT` / `NEXTJS-NO-HEADERS` | Garde-fous désactivés, en-têtes absents |
 
 **Les gabarits serveur sont analysés comme du HTML** : `.blade.php`, `.erb`, `.twig`, `.liquid`, `.njk`, `.jinja`. Les vues de vos projets Laravel, Rails ou Symfony bénéficient donc du SEO, de l'accessibilité et de la détection de liens morts — ce qui n'était pas le cas auparavant.
 

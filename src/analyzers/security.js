@@ -162,6 +162,7 @@ function scanConfigFiles(context, report) {
     if (rule.scope === 'project') continue;
     for (const file of context.files) {
       if (!file.readable || !rule.files.test(file.relativePath)) continue;
+      if (rule.exclude && rule.exclude.test(file.relativePath)) continue;
       const content = file.content;
       let line = 1;
 

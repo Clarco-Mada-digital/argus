@@ -20,7 +20,15 @@ const PROVIDER_SECRETS = [
   { id: 'npm-token', label: 'Jeton npm', pattern: /\b(npm_[A-Za-z0-9]{36})\b/g, severity: 'critical' },
   { id: 'private-key', label: 'Clef privee', pattern: /-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP )?PRIVATE KEY-----/g, severity: 'critical' },
   { id: 'jwt-token', label: 'Jeton JWT en dur', pattern: /\b(eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,})\b/g, severity: 'high' },
-  { id: 'db-url', label: 'URL de base avec identifiants', pattern: /\b((?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|redis|amqp):\/\/[^:\s"']+:[^@\s"']{3,}@[^\s"'/]+)/gi, severity: 'critical' },
+  {
+    id: 'db-url',
+    label: 'URL de base avec identifiants',
+    pattern: /\b((?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|redis|amqp):\/\/[^:\s"']+:[^@\s"']{3,}@[^\s"'/]+)/gi,
+    severity: 'critical',
+    // `user:pass@localhost` est ce qu'on ecrit dans un modele : le signaler
+    // apprend a ignorer la regle le jour ou une vraie URL apparait.
+    ignore: /:\/\/(user|username|utilisateur|admin|root|foo|test|demo):(pass|password|motdepasse|secret|changeme|xxx+|\*+)@|@(localhost|127\.0\.0\.1|db|host|hostname|example\.\w+)[:/]/i,
+  },
   { id: 'basic-auth-url', label: 'URL HTTP avec identifiants', pattern: /\bhttps?:\/\/[^:\s"']+:[^@\s"']{3,}@/gi, severity: 'high' },
 ];
 
@@ -84,6 +92,7 @@ export function detectSecrets(line, { minEntropy = 3.6, allowTests = false, unqu
     let match;
     while ((match = rule.pattern.exec(line)) !== null) {
       const value = match[1] || match[0];
+      if (rule.ignore && rule.ignore.test(value)) continue;
       results.push({
         kind: rule.id,
         label: rule.label,
