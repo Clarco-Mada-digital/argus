@@ -25,6 +25,16 @@ Node.js 18 ou plus récent, rien d'autre. Aucun clone, aucune installation. C'es
 
 **[clarco-mada-digital.github.io/argus/analyser.html](https://clarco-mada-digital.github.io/argus/analyser.html)**
 
+> **Activation de GitHub Pages — une seule fois.** Créer un site Pages exige une
+> permission d'administration que le jeton d'un workflow ne peut pas recevoir :
+> l'étape ne peut donc pas être automatisée. Dans **Settings → Pages**, choisissez
+> **Source : GitHub Actions**, puis relancez le workflow. Le site se publie ensuite
+> à chaque `push` sur `main`.
+>
+> En attendant, la page fonctionne aussi en local : `git clone`, puis servez le
+> dossier `site/` (`npx serve site` ou tout serveur statique) — l'analyse tourne
+> entièrement dans votre navigateur.
+
 Choisissez un dossier de votre ordinateur : Argus l'analyse dans l'onglet et affiche le rapport. **Vos fichiers ne quittent pas votre machine** — la page n'a pas de serveur, vous pouvez couper votre connexion avant de lancer l'analyse.
 
 Ce n'est pas un portage : c'est le même cœur, avec `node:fs`, `node:path` et `node:crypto` redirigés vers des shims par une carte d'imports. Les empreintes SHA-1 sont identiques à celles de la ligne de commande, donc une baseline reste interchangeable.

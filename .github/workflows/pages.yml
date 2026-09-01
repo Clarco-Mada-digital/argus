@@ -23,6 +23,41 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      # Le jeton d'un workflow ne peut pas creer un site Pages : l'API exige
+      # une permission d'administration que GITHUB_TOKEN ne peut pas recevoir.
+      # L'activation est donc une etape manuelle, a faire une seule fois. On la
+      # detecte ici pour afficher une consigne claire plutot qu'une erreur d'API.
+      - name: Verifier que Pages est active
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          code=$(curl -sS -o /dev/null -w '%{http_code}' \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/pages")
+
+          if [ "$code" = "404" ]; then
+            echo "::error title=GitHub Pages n'est pas active::Activez-la une seule fois : Settings -> Pages -> Source : GitHub Actions, puis relancez ce workflow."
+            {
+              echo "## GitHub Pages doit etre active"
+              echo
+              echo "Cette etape ne peut pas etre automatisee : creer un site Pages demande une"
+              echo "permission d'administration que le jeton d'un workflow ne peut pas obtenir."
+              echo
+              echo "**A faire une seule fois :**"
+              echo
+              echo "1. Ouvrir **Settings -> Pages** du depot"
+              echo "2. Sous **Build and deployment**, choisir **Source : GitHub Actions**"
+              echo "3. Relancer ce workflow (**Re-run all jobs**)"
+              echo
+              echo "Le site sera ensuite publie a chaque \`push\` sur \`main\`."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+          echo "Pages est active (HTTP $code) : publication en cours."
+
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -42,12 +77,7 @@ jobs:
           node bin/argus.js scan tests/fixtures/demo-site \
             --no-history --html _site/demo.html --silent || true
 
-      # `enablement: true` active Pages lui-meme au premier passage, en mode
-      # « build par workflow ». Sans cela, l'action echoue tant que personne
-      # n'est alle cocher l'option dans les reglages du depot.
       - uses: actions/configure-pages@v5
-        with:
-          enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
