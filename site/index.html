@@ -45,7 +45,7 @@
 <div class="zone zone-large hero">
   <div class="hero-grille">
     <div>
-      <p class="etiquette"><span class="pastille"></span> <b>Zéro dépendance</b> · 173 tests · MIT</p>
+      <p class="etiquette"><span class="pastille"></span> <b>Zéro dépendance</b> · 13 frameworks · 191 tests</p>
       <h1>Il voit ce que<br>vous ne voyez plus.<span class="fin">Une commande suffit.</span></h1>
       <p class="accroche">
         Secrets versionnés, liens qui ne mènent nulle part, code que plus personne n'appelle,
@@ -181,18 +181,36 @@
       <h2>Il connaît votre framework</h2>
     </div>
     <p class="intro-section">
-      Six packs de règles dédiés. Chacun a été validé contre un projet réaliste construit
+      Treize packs de règles dédiés. Chacun a été validé contre un projet réaliste construit
       pour l'occasion — et les faux positifs mesurés <em>avant</em> livraison.
     </p>
 
-    <div class="fw"><div class="fw-nom">Django</div><p><code>SECRET_KEY</code> en dur, formulaire sans <code>{% csrf_token %}</code>, <code>{% url %}</code> vers une route inexistante, N+1 de l'ORM malgré l'indentation.</p></div>
-    <div class="fw"><div class="fw-nom">Laravel</div><p><code>env()</code> hors de <code>config/</code> — renvoie <code>null</code> après <code>config:cache</code>, silencieusement. Et <code>$guarded = []</code>.</p></div>
+    <h3 style="margin-top:var(--e4);color:var(--text-dim);font-size:.9rem;text-transform:uppercase;letter-spacing:.08em">Front et rendu</h3>
+    <div class="fw"><div class="fw-nom">React</div><p>Jeton rangé dans <code>localStorage</code> — une faille XSS suffit à voler la session. Liste sans <code>key</code>, <code>href</code> construit depuis une valeur externe.</p></div>
+    <div class="fw"><div class="fw-nom">Next.js</div><p><code>ignoreBuildErrors</code>, <code>images.domains: ['*']</code>, route d'API traitant un GET comme un POST.</p></div>
+    <div class="fw"><div class="fw-nom">Nuxt</div><p>Secret sous <code>runtimeConfig.public</code> — sérialisé vers le navigateur. <code>ssr: false</code> qui vide vos pages pour les robots.</p></div>
+    <div class="fw"><div class="fw-nom">Astro</div><p><code>set:html</code>, <code>client:only</code> qui saute le rendu serveur, secret injecté par <code>vite.define</code>.</p></div>
+    <div class="fw"><div class="fw-nom">SvelteKit</div><p>Le retour de <code>load()</code> part dans le navigateur — malgré le nom <code>.server</code>. Et <code>{@html}</code>.</p></div>
+    <div class="fw"><div class="fw-nom">Angular</div><p><code>bypassSecurityTrustHtml</code> — le seul moyen de désactiver l'assainissement d'Angular.</p></div>
+
+    <h3 style="margin-top:var(--e4);color:var(--text-dim);font-size:.9rem;text-transform:uppercase;letter-spacing:.08em">Serveur</h3>
+    <div class="fw"><div class="fw-nom">Django</div><p><code>SECRET_KEY</code> en dur, formulaire sans <code>{% csrf_token %}</code>, <code>{% url %}</code> vers une route inexistante, N+1 de l'ORM.</p></div>
+    <div class="fw"><div class="fw-nom">Flask</div><p>Clé de session en dur, <strong>aucune protection CSRF</strong> — Flask n'en fournit pas. <code>send_file</code> depuis la requête.</p></div>
+    <div class="fw"><div class="fw-nom">FastAPI</div><p><code>allow_origins=["*"]</code> <em>avec</em> <code>allow_credentials=True</code> : combinaison interdite par la spécification.</p></div>
+    <div class="fw"><div class="fw-nom">Laravel</div><p><code>env()</code> hors de <code>config/</code> — renvoie <code>null</code> après <code>config:cache</code>, silencieusement.</p></div>
     <div class="fw"><div class="fw-nom">Rails</div><p><code>config/master.key</code> versionné, interpolation dans un <code>where()</code>, <code>params.permit!</code>.</p></div>
-    <div class="fw"><div class="fw-nom">Spring Boot</div><p>Actuator ouvert : <code>/heapdump</code> expose en clair tous les secrets chargés en mémoire. Console H2 activée.</p></div>
+    <div class="fw"><div class="fw-nom">Spring Boot</div><p>Actuator ouvert : <code>/heapdump</code> expose en clair tous les secrets chargés en mémoire.</p></div>
     <div class="fw"><div class="fw-nom">Express</div><p><code>dotfiles: 'allow'</code> qui sert <code>.env</code> et <code>.git/config</code>. Trace d'exception renvoyée au client.</p></div>
-    <div class="fw"><div class="fw-nom">Next.js</div><p><code>NEXT_PUBLIC_*_SECRET</code> — inlinée dans le bundle : lisible via « afficher le code source ».</p></div>
-  </div>
-</section>
+
+    <div class="encart" style="margin-top:var(--e4)">
+      <strong>Un piège commun à tous les outils de construction.</strong>
+      <code>NEXT_PUBLIC_</code>, <code>VITE_</code>, <code>PUBLIC_</code>, <code>REACT_APP_</code>,
+      <code>GATSBY_</code>, <code>EXPO_PUBLIC_</code>… Ces préfixes ne sont pas des espaces de noms :
+      <em>ce sont des publications</em>. Une clé nommée <code>…_SECRET_KEY</code> devient lisible
+      via « afficher le code source ». Une seule règle couvre les huit écosystèmes — et écarte
+      les faux amis comme <code>PUBLIC_KEY</code> ou <code>PUBLISHABLE</code>.
+    </div>
+  </section>
 
 <section>
   <div class="zone zone-large">

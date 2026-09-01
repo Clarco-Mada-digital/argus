@@ -358,6 +358,10 @@ export function isEntryPoint(file, context) {
   // Spring instancie ses composants par scan du classpath, a partir des
   // annotations : aucune classe annotee n'est jamais importee explicitement.
   if (/(^|\/)src\/main\/(java|kotlin|resources)\//.test(rel)) return true;
+  // Nuxt, SvelteKit, Astro : dossiers charges par convention de nom de fichier.
+  if (/(^|\/)(server\/(api|routes|middleware|plugins)|composables|plugins|middleware|layouts|content)\//.test(rel)) return true;
+  if (/(^|\/)src\/(routes|pages|content|params|hooks)\//.test(rel)) return true;
+  if (/^\+(page|layout|server|error)(\.|$)/.test(name) || /\.(astro|vue|svelte)$/.test(name)) return true;
   // Manifestes de dependances : ce sont des declarations, pas du code appele.
   if (/^(Gemfile|Rakefile|Podfile|Brewfile|Fastfile|Appfile)$/i.test(name)) return true;
   if (/^(pages|app|src\/pages|src\/app|src\/routes|routes|views|controllers|migrations|api)\//.test(rel)) return true;

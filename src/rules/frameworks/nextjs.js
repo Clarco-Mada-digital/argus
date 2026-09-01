@@ -3,10 +3,9 @@ import { lineIndexFor, matches } from '../../core/scan.js';
 /**
  * Pack de regles Next.js.
  *
- * La particularite de Next.js est la frontiere serveur/navigateur : le meme
- * fichier peut contenir du code qui reste sur le serveur et du code qui part
- * dans le navigateur. Les erreurs les plus couteuses viennent de la confusion
- * entre les deux — a commencer par le prefixe NEXT_PUBLIC_.
+ * La fuite par prefixe NEXT_PUBLIC_ est traitee par une regle generale
+ * (variables-publiques.js) : le mecanisme est identique dans Nuxt, Vite,
+ * SvelteKit, Astro et les autres. Ce pack couvre le reste.
  */
 export default {
   id: 'nextjs',
@@ -16,53 +15,11 @@ export default {
   run(context, report) {
     const js = context.sources({ families: ['js'], includeTests: false });
     const config = context.files.filter((f) => /^next\.config\.(js|mjs|ts)$/.test(f.name));
-    const env = context.files.filter((f) => f.readable && /(^|\/)\.env/.test(f.relativePath));
 
-    verifierVariablesPubliques([...js, ...env], report);
     verifierConfig(config, report);
     verifierMethodesApi(js, report);
   },
 };
-
-/**
- * Tout ce qui commence par NEXT_PUBLIC_ est remplace par sa valeur au moment
- * de la construction et se retrouve **dans le fichier JavaScript telecharge par
- * le navigateur**. Le prefixe n'est pas un espace de noms : c'est une
- * publication.
- */
-const NOM_SENSIBLE = /(secret|token|password|passwd|private|api_?key|apikey|credential|signing|webhook)/i;
-
-function verifierVariablesPubliques(fichiers, report) {
-  const signales = new Set();
-
-  for (const file of fichiers) {
-    const index = lineIndexFor(file);
-    for (const match of matches(file.content, /\bNEXT_PUBLIC_([A-Z0-9_]+)/g)) {
-      const nom = `NEXT_PUBLIC_${match[1]}`;
-      if (!NOM_SENSIBLE.test(match[1])) continue;
-      if (signales.has(nom)) continue;
-      signales.add(nom);
-
-      report({
-        ruleId: 'NEXTJS-PUBLIC-SECRET',
-        category: 'security',
-        severity: 'critical',
-        title: `${nom} est publiee dans le navigateur`,
-        message:
-          'Next.js remplace toute variable prefixee NEXT_PUBLIC_ par sa valeur au moment de la construction, et l\'inclut dans le bundle telecharge par chaque visiteur. Le nom indique une valeur sensible : elle est donc lisible par n\'importe qui, via « afficher le code source ».',
-        file: file.relativePath,
-        line: index.lineOf(match.index),
-        snippet: index.textOfLine(index.lineOf(match.index)).trim(),
-        suggestion:
-          `Retirez le prefixe : ${nom.replace('NEXT_PUBLIC_', '')} reste alors cote serveur. Consommez-la depuis une route d'API, getServerSideProps ou un composant serveur — et considerez la valeur actuelle comme compromise.`,
-        effort: 'moyen',
-        confidence: 'certain',
-        tags: ['CWE-200', 'A01:2021', 'nextjs'],
-        docs: 'https://nextjs.org/docs/app/building-your-application/configuring/environment-variables',
-      });
-    }
-  }
-}
 
 /** Reglages de next.config.js aux consequences disproportionnees. */
 const REGLAGES_CONFIG = [

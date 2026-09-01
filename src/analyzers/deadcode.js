@@ -211,6 +211,11 @@ function isPublicApiFile(file, context) {
   // Cible d'une carte d'imports : c'est le navigateur qui consomme ses exports,
   // en remplacement d'un module de plateforme. Le mimetisme de l'API est le but.
   if (isEntryPoint(file, context) && /(^|\/)shims?\//.test(file.relativePath)) return true;
+  // Fichiers a exports conventionnels : SvelteKit appelle `load` et `actions`,
+  // Nuxt appelle le gestionnaire par defaut d'une route serveur, Astro lit
+  // `getStaticPaths`. Aucun de ces symboles n'est jamais importe.
+  if (/^\+(page|layout|server|error)\./.test(file.name)) return true;
+  if (/(^|\/)(server\/(api|routes)|src\/(routes|pages))\//.test(file.relativePath)) return true;
   const pkg = context.manifests['package.json']?.data;
   if (pkg?.main && file.relativePath.endsWith(pkg.main.replace(/^\.\//, ''))) return true;
   return false;

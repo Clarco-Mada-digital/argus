@@ -57,7 +57,7 @@ L'action publie les annotations directement dans la diff et expose `score` et `f
 ```bash
 git clone https://github.com/Clarco-Mada-digital/argus.git
 cd argus
-npm run check    # linter + 171 tests, sans rien installer
+npm run check    # linter + 191 tests, sans rien installer
 
 # Analyse du dossier courant
 node bin/argus.js
@@ -158,59 +158,39 @@ Images et ressources trop lourdes (avec le temps de chargement estimé en 3G), S
 
 Certaines vérifications n'ont de sens que pour un framework donné, et demandent de croiser plusieurs fichiers. Elles sont regroupées en **packs** activés automatiquement.
 
-Six packs sont livrés — **Django**, **Laravel**, **Rails**, **Spring**, **Express** et **Next.js** — chacun validé contre un projet réaliste construit pour l'occasion, avec les faux positifs mesurés avant livraison.
+**Treize packs** sont livrés, chacun validé contre un projet réaliste construit pour l'occasion, avec les faux positifs mesurés avant livraison.
 
-**Django** (7 règles) :
+### Le piège commun à tous les outils de construction
 
-| Règle | Détecte |
+```
+NEXT_PUBLIC_STRIPE_SECRET_KEY   VITE_API_TOKEN   PUBLIC_ADMIN_KEY
+NUXT_PUBLIC_...   REACT_APP_...   GATSBY_...   EXPO_PUBLIC_...   VUE_APP_...
+```
+
+Ces préfixes ne sont **pas des espaces de noms : ce sont des publications**. La valeur est inlinée dans le bundle et devient lisible via « afficher le code source ». Une seule règle — `ENV-PUBLIC-SECRET` — couvre les huit écosystèmes, y compris ceux sans pack dédié. Les faux amis (`PUBLIC_KEY`, `PUBLISHABLE`, `ANON_KEY`, `_URL`) sont écartés.
+
+### Front et rendu
+
+| Framework | Ce qu'il attrape en propre |
 |---|---|
-| `DJANGO-SECRET-KEY-HARDCODED` | `SECRET_KEY` en dur — permet de forger une session d'administrateur |
-| `DJANGO-CSRF-TOKEN-MISSING` | Formulaire POST sans `{% csrf_token %}` — Django renverra un 403 |
-| `DJANGO-URL-UNKNOWN` | `{% url 'nom' %}` sans `name=` correspondant — `NoReverseMatch` à l'exécution |
-| `DJANGO-HARDENING-MISSING` | `SECURE_SSL_REDIRECT`, `SECURE_HSTS_SECONDS`, `X_FRAME_OPTIONS` absents |
-| `SEC-ALLOWED-HOSTS-WILDCARD` | `ALLOWED_HOSTS = ['*']` |
-| `SEC-SECURE-FLAG-OFF` | `SESSION_COOKIE_SECURE = False` |
-| `DJANGO-MODEL-NO-STR` / `DJANGO-CHARFIELD-NULL` | Conventions de modèles |
+| **React** | Jeton rangé dans `localStorage` — une faille XSS suffit à voler la session. Liste sans `key`. `href` construit depuis une valeur externe. |
+| **Next.js** | `ignoreBuildErrors`, `images.domains: ['*']`, route d'API traitant GET comme POST, en-têtes absents. |
+| **Nuxt** | Secret sous `runtimeConfig.public` — sérialisé vers le navigateur. `ssr: false` qui vide vos pages pour les robots. DevTools actif. |
+| **Astro** | `set:html` (XSS), `client:only` qui saute le rendu serveur, secret injecté par `vite.define`. |
+| **SvelteKit** | **Le retour de `load()` part dans le navigateur**, malgré le nom `.server`. `{@html}`. |
+| **Angular** | `bypassSecurityTrustHtml` — le seul moyen de désactiver l'assainissement. Liaison `[innerHTML]`. |
 
-S'y ajoutent, pour Django : routes extraites de `path()`, `re_path()` et `include()`, N+1 de l'ORM détecté malgré l'indentation Python, gabarits analysés comme du HTML (SEO, accessibilité, liens morts), et **aucun bruit** sur `settings.py`, `views.py`, `models.py` — chargés par convention, jamais importés.
+### Serveur
 
-**Laravel** (4 règles) :
-
-| Règle | Détecte |
+| Framework | Ce qu'il attrape en propre |
 |---|---|
-| `LARAVEL-CSRF-MISSING` | Formulaire POST Blade sans `@csrf` — Laravel renvoie une erreur 419 |
-| `LARAVEL-ENV-OUTSIDE-CONFIG` | `env()` hors de `config/` — renvoie `null` après `php artisan config:cache`, silencieusement |
-| `LARAVEL-GUARDED-EMPTY` | `$guarded = []` — un client peut forcer `is_admin` via un champ de formulaire |
-| `LARAVEL-MODEL-NO-HIDDEN` | `password` dans `$fillable` sans `$hidden` — fuite dans toute réponse JSON |
-
-**Rails** (5 règles) :
-
-| Règle | Détecte |
-|---|---|
-| `RAILS-MASTER-KEY-COMMITTED` | **critique** — `config/master.key` versionné : déchiffre tous vos credentials |
-| `RAILS-SQL-INTERPOLATION` | **critique** — `where("titre = '#{params[:q]}'")` |
-| `RAILS-CSRF-DISABLED` | `skip_before_action :verify_authenticity_token` |
-| `RAILS-PERMIT-ALL` | `params.permit!` — paramètres forts contournés |
-| `RAILS-HTML-SAFE` | `.html_safe` / `raw()` sur du contenu interpolé |
-
-**Express** (4 règles) :
-
-| Règle | Détecte |
-|---|---|
-| `EXPRESS-STATIC-DOTFILES` | **critique** — `dotfiles: 'allow'` sert `.env` et `.git/config` |
-| `EXPRESS-STACK-LEAK` | `err.stack` renvoyé au client : chemins serveur et versions |
-| `EXPRESS-SESSION-COOKIE` | Cookie de session sans `secure` / `httpOnly` / `sameSite` |
-| `EXPRESS-NO-BODY-LIMIT` | Corps de requête sans limite de taille |
-
-**Next.js** (5 règles) :
-
-| Règle | Détecte |
-|---|---|
-| `NEXTJS-PUBLIC-SECRET` | **critique** — `NEXT_PUBLIC_STRIPE_SECRET_KEY` est inlinée dans le bundle : lisible via « afficher le code source » |
-| `NEXTJS-IGNORE-TYPES` | `ignoreBuildErrors: true` — publie du code que le compilateur refuse |
-| `NEXTJS-IMAGE-WILDCARD` | `images.domains: ['*']` — relais d'images ouvert |
-| `NEXTJS-API-NO-METHOD-CHECK` | Route d'API traitant GET comme POST |
-| `NEXTJS-IGNORE-LINT` / `NEXTJS-NO-HEADERS` | Garde-fous désactivés, en-têtes absents |
+| **Django** | `SECRET_KEY` en dur, formulaire sans `{% csrf_token %}`, `{% url %}` vers une route inexistante, N+1 de l'ORM. |
+| **Flask** | Clé de session en dur, **aucune protection CSRF** (Flask n'en fournit pas), `send_file` depuis la requête. |
+| **FastAPI** | `allow_origins=["*"]` **avec** `allow_credentials=True` — combinaison interdite par la spécification. `response_model` absent. |
+| **Laravel** | `env()` hors de `config/` — renvoie `null` après `config:cache`, silencieusement. `$guarded = []`. |
+| **Rails** | `config/master.key` versionné, interpolation dans un `where()`, `params.permit!`. |
+| **Spring Boot** | Actuator ouvert : `/heapdump` expose tous les secrets en mémoire. Console H2. |
+| **Express** | `dotfiles: 'allow'` qui sert `.env` et `.git/config`. `err.stack` renvoyé au client. |
 
 **Les gabarits serveur sont analysés comme du HTML** : `.blade.php`, `.erb`, `.twig`, `.liquid`, `.njk`, `.jinja`. Les vues de vos projets Laravel, Rails ou Symfony bénéficient donc du SEO, de l'accessibilité et de la détection de liens morts — ce qui n'était pas le cas auparavant.
 
@@ -545,7 +525,7 @@ C'est le prix à payer pour un outil qui s'exécute en moins d'une seconde, sans
 npm test
 ```
 
-94 tests couvrent :
+191 tests couvrent :
 
 - les briques de base — glob, masquage lexical, couleur et contraste WCAG, parsing HTML, détection de secrets, routes, score ;
 - le **calcul CVSS**, vérifié contre les vecteurs de référence publiés par FIRST.org ;

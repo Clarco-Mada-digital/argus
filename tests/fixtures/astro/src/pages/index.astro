@@ -1,0 +1,24 @@
+---
+const reponse = await fetch('https://api.exemple.com/articles');
+const articles = await reponse.json();
+const cle = import.meta.env.PUBLIC_STRIPE_SECRET_KEY;
+---
+<html lang="fr">
+  <head>
+    <meta charset="utf-8">
+    <title>Journal</title>
+  </head>
+  <body>
+    <main>
+      <h1>Articles</h1>
+      <p data-cle={cle}>Flux</p>
+      {articles.map((a) => (
+        <article>
+          <a href={`/articles/${a.slug}`}>{a.titre}</a>
+          <div set:html={a.contenu} />
+        </article>
+      ))}
+      <MonWidget client:only="react" />
+    </main>
+  </body>
+</html>

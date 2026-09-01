@@ -4,6 +4,14 @@ import rails from './rails.js';
 import spring from './spring.js';
 import express from './express.js';
 import nextjs from './nextjs.js';
+import nuxt from './nuxt.js';
+import astro from './astro.js';
+import sveltekit from './sveltekit.js';
+import react from './react.js';
+import angular from './angular.js';
+import flask from './flask.js';
+import fastapi from './fastapi.js';
+import variablesPubliques from './variables-publiques.js';
 
 /**
  * Packs de regles specifiques a un framework.
@@ -16,4 +24,11 @@ import nextjs from './nextjs.js';
  * Pour ajouter un framework : creez un module exportant
  * { id, label, appliesTo(context), run(context, report) } et referencez-le ici.
  */
-export const FRAMEWORK_PACKS = [django, laravel, rails, spring, express, nextjs];
+export const FRAMEWORK_PACKS = [
+  // Serveur
+  django, flask, fastapi, laravel, rails, spring, express,
+  // Front et rendu
+  react, nextjs, nuxt, astro, sveltekit, angular,
+  // Transverse : le piege du prefixe public existe partout.
+  variablesPubliques,
+];

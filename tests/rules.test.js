@@ -89,3 +89,34 @@ test('suppression : la directive vaut dans tout le bloc de commentaires preceden
 
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test('regles : un exemple de code dans une page n\'est pas une vulnerabilite', async () => {
+  const { scan } = await import('../src/index.js');
+  const fs = await import('node:fs');
+  const os = await import('node:os');
+  const pathMod = await import('node:path');
+
+  const dir = fs.mkdtempSync(pathMod.join(os.tmpdir(), 'argus-doc-'));
+  fs.writeFileSync(
+    pathMod.join(dir, 'guide.html'),
+    [
+      '<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Guide de securite</title></head>',
+      '<body><main><h1>CORS</h1>',
+      // Le motif est ici *explique*, pas applique.
+      '<p>Ne combinez jamais <code>allow_origins=["*"]</code> avec des identifiants.</p>',
+      '<pre><code>app.use(cors());</code></pre>',
+      '</main></body></html>',
+    ].join('\n'),
+  );
+
+  const r = await scan(dir, { categories: ['security'] });
+  const bruit = r.findings.filter((f) => f.ruleId === 'SEC-CORS-WILDCARD');
+  assert.deepEqual(bruit, [], 'un article qui explique une faille ne la contient pas');
+
+  // Le meme motif hors zone d'exemple doit rester signale.
+  fs.writeFileSync(pathMod.join(dir, 'vrai.html'), '<script>app.use(cors());</script>');
+  const reel = await scan(dir, { categories: ['security'] });
+  assert.ok(reel.findings.some((f) => f.ruleId === 'SEC-CORS-WILDCARD'), 'le code reel doit remonter');
+
+  fs.rmSync(dir, { recursive: true, force: true });
+});

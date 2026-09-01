@@ -277,6 +277,85 @@ Le routeur `app/` déclare une fonction par méthode (`export async function POS
 
 ---
 
+## Variables publiques — `ENV-PUBLIC-SECRET`
+
+**critique.** Une variable dont le nom désigne une valeur sensible, portant un préfixe qui la publie dans le navigateur : `NEXT_PUBLIC_`, `NUXT_PUBLIC_`, `VITE_`, `PUBLIC_`, `REACT_APP_`, `GATSBY_`, `EXPO_PUBLIC_`, `VUE_APP_`.
+
+Écartés comme faux amis : `PUBLIC_KEY`, `SITE_KEY`, `PUBLISHABLE`, `CLIENT_ID`, `ANON_KEY`, et tout nom finissant par `_URL`, `_HOST`, `_REGION`, `_VERSION`.
+
+---
+
+## React — `REACT-*`
+
+| Règle | Gravité | Détecte |
+|---|---|---|
+| `REACT-TOKEN-IN-STORAGE` | élevé | Jeton dans `localStorage`/`sessionStorage` : lisible par tout script de la page |
+| `REACT-LIST-NO-KEY` | moyen | `.map()` sans `key` : l'état interne suit la mauvaise ligne après un tri |
+| `REACT-DYNAMIC-HREF` | moyen *(tentative)* | `href={valeurExterne}` : `javascript:` devient exécutable |
+
+S'applique aussi à Next.js, Remix, Gatsby et React Native.
+
+---
+
+## Nuxt — `NUXT-*`
+
+| Règle | Gravité | Détecte |
+|---|---|---|
+| `NUXT-PUBLIC-RUNTIME-SECRET` | critique | Secret sous `runtimeConfig.public` : sérialisé vers le navigateur |
+| `NUXT-SSR-DISABLED` | élevé | `ssr: false` — les robots reçoivent une coquille vide |
+| `NUXT-DEVTOOLS-ENABLED` | faible | DevTools actif sans condition d'environnement |
+
+---
+
+## Astro — `ASTRO-*`
+
+| Règle | Gravité | Détecte |
+|---|---|---|
+| `ASTRO-VITE-DEFINE-SECRET` | critique | `vite.define` injecte la valeur littéralement dans le bundle |
+| `ASTRO-SET-HTML` | élevé | `set:html` — l'équivalent Astro de `innerHTML` |
+| `ASTRO-CLIENT-ONLY` | moyen | `client:only` saute le rendu serveur : contenu absent du HTML |
+
+---
+
+## SvelteKit — `SVELTE*`
+
+| Règle | Gravité | Détecte |
+|---|---|---|
+| `SVELTEKIT-SERVER-DATA-LEAK` | critique | Valeur sensible renvoyée par `load()` — sérialisée vers le client malgré le nom `.server` |
+| `SVELTE-HTML-TAG` | élevé | `{@html}` : le seul moyen de contourner l'échappement de Svelte |
+
+Le routage par convention est reconnu : `+page.svelte` désigne son dossier, `+page.server.js` n'est pas une route.
+
+---
+
+## Angular — `ANGULAR-*`
+
+| Règle | Gravité | Détecte |
+|---|---|---|
+| `ANGULAR-BYPASS-SECURITY` | élevé / moyen | `bypassSecurityTrust*` désactive l'assainissement |
+| `ANGULAR-INNERHTML-BINDING` | moyen *(tentative)* | Liaison `[innerHTML]` |
+
+---
+
+## Flask — `FLASK-*`
+
+| Règle | Gravité | Détecte |
+|---|---|---|
+| `FLASK-SECRET-KEY-HARDCODED` | critique | Clé de session en dur : permet de forger une session |
+| `FLASK-NO-CSRF` | élevé | Routes POST sans protection CSRF — Flask n'en fournit aucune |
+| `FLASK-SEND-FILE-TRAVERSAL` | élevé | Chemin servi construit depuis la requête |
+
+---
+
+## FastAPI — `FASTAPI-*`
+
+| Règle | Gravité | Détecte |
+|---|---|---|
+| `FASTAPI-CORS-CREDENTIALS` | critique | `allow_origins=["*"]` avec `allow_credentials=True` |
+| `FASTAPI-NO-RESPONSE-MODEL` | moyen *(tentative)* | Endpoint renvoyant un modèle de base sans schéma de sortie |
+
+---
+
 ## Exploration HTTP — `CRAWL-*`
 
 Ces règles ne s'activent qu'avec `argus crawl <url>` ou `--crawl <url>`. Ce sont des **faits observés** sur votre serveur, pas des déductions : toutes portent la confiance `certain`.

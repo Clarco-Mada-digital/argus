@@ -46,6 +46,20 @@ function applicableRules(family, cache) {
  */
 const DOCUMENTATION_LANGUAGES = new Set(['markdown', 'text', 'unknown', 'json']);
 
+/**
+ * Plages occupees par des exemples de code dans une page : `<code>` et `<pre>`.
+ * Un article qui explique une vulnerabilite en montre le motif — le signaler
+ * reviendrait a punir la documentation.
+ */
+function plagesDExemples(file) {
+  if (file.family !== 'markup') return [];
+  const plages = [];
+  for (const match of matches(file.content, /<(code|pre)\b[^>]*>[\s\S]*?<\/\1>/gi)) {
+    plages.push([match.index, match.index + match[0].length]);
+  }
+  return plages;
+}
+
 function scanPatterns(file, context, report, cache) {
   if (DOCUMENTATION_LANGUAGES.has(file.language)) return;
   const family = file.family;
@@ -55,12 +69,15 @@ function scanPatterns(file, context, report, cache) {
   const raw = file.content;
   const masked = maskedSource(file);
   const index = lineIndexFor(file);
+  const exemples = plagesDExemples(file);
+  const estUnExemple = (offset) => exemples.some(([debut, fin]) => offset >= debut && offset < fin);
 
   for (const rule of rules) {
     const haystack = rule.raw ? raw : masked;
     // Les motifs sur code masque perdent les chaines : on retombe sur le brut
     // quand la regle cible explicitement des litteraux.
     for (const match of matches(haystack, rule.pattern)) {
+      if (estUnExemple(match.index)) continue;
       const position = index.position(match.index);
       const lineText = index.textOfLine(position.line);
       if (rule.ignoreIf && rule.ignoreIf(lineText, file)) continue;

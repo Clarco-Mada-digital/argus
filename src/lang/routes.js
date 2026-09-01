@@ -373,7 +373,8 @@ export function extractFileSystemRoutes(context) {
           if (!file.relativePath.startsWith(`${dir}/`)) continue;
           if (!/\.(jsx?|tsx?|vue|svelte|astro|mdx?)$/.test(file.name)) continue;
           if (/^_/.test(file.name) && framework === 'nextjs') continue;
-          if (/^(layout|error|loading|not-found|template|\+layout|\+error)\./.test(file.name)) continue;
+          if (/^(layout|error|loading|not-found|template)\./.test(file.name)) continue;
+          if (/^\+(layout|error|server)/.test(file.name)) continue;
 
           const pattern = fileToRoutePattern(file.relativePath.slice(dir.length + 1), framework);
           if (pattern === null) continue;
@@ -408,7 +409,14 @@ export function extractFileSystemRoutes(context) {
 export function fileToRoutePattern(relative, framework) {
   let route = relative.replace(/\.[^.]+$/, '');
 
-  if (framework === 'nextjs-app') {
+  if (framework === 'sveltekit') {
+    // Convention SvelteKit : `+page.svelte` est la page du dossier qui la
+    // contient. `+page.server.js` fournit ses donnees, ce n'est pas une route.
+    if (/\+page\.server$/.test(route) || /^\+(layout|error|server)/.test(relative)) return null;
+    if (!/(^|\/)\+page$/.test(route)) return null;
+    route = route.replace(/(^|\/)\+page$/, '');
+    route = route.replace(/\((\w+)\)\//g, '');
+  } else if (framework === 'nextjs-app') {
     if (!/(^|\/)(page|route)$/.test(route)) return null;
     route = route.replace(/(^|\/)(page|route)$/, '');
   } else {

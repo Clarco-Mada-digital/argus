@@ -78,14 +78,14 @@ test('express : une configuration correcte ne produit aucun bruit', async () => 
 // ------------------------------------------------------------------ Next.js
 
 test('nextjs : NEXT_PUBLIC_ sur une valeur sensible est critique', () => {
-  const trouves = nextjs.findings.filter((f) => f.ruleId === 'NEXTJS-PUBLIC-SECRET');
+  const trouves = nextjs.findings.filter((f) => f.ruleId === 'ENV-PUBLIC-SECRET');
   assert.ok(trouves.length >= 2, 'detectee dans le code comme dans le fichier .env');
   assert.ok(trouves.every((f) => f.severity === 'critical'));
   assert.match(trouves[0].message, /bundle telecharge par chaque visiteur/);
 });
 
 test('nextjs : NEXT_PUBLIC_ sur une valeur anodine ne remonte pas', () => {
-  const trouves = nextjs.findings.filter((f) => f.ruleId === 'NEXTJS-PUBLIC-SECRET');
+  const trouves = nextjs.findings.filter((f) => f.ruleId === 'ENV-PUBLIC-SECRET');
   assert.ok(
     !trouves.some((f) => f.title.includes('NEXT_PUBLIC_API_URL')),
     'une URL publique est precisement ce que le prefixe sert a exposer',
