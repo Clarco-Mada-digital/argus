@@ -45,7 +45,7 @@
 <div class="zone zone-large hero">
   <div class="hero-grille">
     <div>
-      <p class="etiquette"><span class="pastille"></span> <b>Zéro dépendance</b> · 18 frameworks · 199 tests</p>
+      <p class="etiquette"><span class="pastille"></span> <b>Zéro dépendance</b> · 20 frameworks · 202 tests</p>
       <h1>Il voit ce que<br>vous ne voyez plus.<span class="fin">Une commande suffit.</span></h1>
       <p class="accroche">
         Secrets versionnés, liens qui ne mènent nulle part, code que plus personne n'appelle,
@@ -181,7 +181,7 @@
       <h2>Il connaît votre framework</h2>
     </div>
     <p class="intro-section">
-      Dix-huit packs de règles dédiés, du serveur au mobile. Chacun a été validé contre un
+      Vingt packs de règles dédiés, du serveur au natif. Chacun a été validé contre un
       projet réaliste construit pour l'occasion — et les faux positifs mesurés
       <em>avant</em> livraison.
     </p>
@@ -208,7 +208,8 @@
     <div class="fw"><div class="fw-nom">Flutter</div><p>Même piège, autre nom : <code>SharedPreferences</code> est un XML en clair. Et <code>badCertificateCallback =&gt; true</code>, qui désactive <em>toute</em> la validation TLS.</p></div>
     <div class="fw"><div class="fw-nom">Tauri</div><p><code>"all": true</code> dans l'allowlist réduit à néant le modèle de sécurité entier de Tauri. Shell exposé, <code>csp: null</code>, IPC ouvert à un domaine distant.</p></div>
     <div class="fw"><div class="fw-nom">Electron</div><p><code>nodeIntegration</code>, <code>contextIsolation: false</code>, <code>webSecurity: false</code>. Le renderer affiche du HTML ; s'il a aussi Node, toute XSS devient une exécution de code.</p></div>
-    <div class="fw"><div class="fw-nom">Android · iOS</div><p>Règle <strong>transverse</strong> sur les manifestes natifs, quel que soit l'outil qui les a générés : trafic en clair, <code>debuggable</code>, <code>allowBackup</code>, ATS désactivé. Couvre aussi Capacitor, Ionic, Kotlin et Swift.</p></div>
+    <div class="fw"><div class="fw-nom">Kotlin · Swift natifs</div><p>Un <code>checkServerTrusted</code> au corps vide ne lève jamais d'exception : par contrat, cela signifie « certificat valide ». Tous le sont donc. Plus <code>UserDefaults</code>, <code>SharedPreferences</code>, trousseau trop accessible.</p></div>
+    <div class="fw"><div class="fw-nom">Manifestes Android · iOS</div><p>Règle <strong>transverse</strong> sur les manifestes natifs, quel que soit l'outil qui les a générés : trafic en clair, <code>debuggable</code>, <code>allowBackup</code>, ATS désactivé. Couvre aussi Capacitor, Ionic, Kotlin et Swift.</p></div>
 
     <div class="encart">
       <h4>Une application mobile n'est pas un site web</h4>

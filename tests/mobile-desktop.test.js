@@ -108,3 +108,43 @@ test('un pack defaillant est signale, pas avale en silence', async () => {
     pack.run = original;
   }
 });
+
+test('android natif : prefs, TrustManager, nom d\'hote, WebView', async () => {
+  const rapport = await analyser('android-kotlin');
+  const trouves = ids(rapport);
+
+  for (const attendu of [
+    'ANDROID-PREFS-NON-CHIFFRE',
+    'ANDROID-TRUSTMANAGER-PERMISSIF',
+    'ANDROID-HOSTNAME-NON-VERIFIE',
+    'ANDROID-WEBVIEW-ACCES-FICHIER',
+  ]) {
+    assert.ok(trouves.includes(attendu), `${attendu} attendu`);
+  }
+
+  // « auth_token » et « refresh_token » oui ; « theme » et « dernier_onglet » non.
+  assert.equal(trouves.filter((id) => id === 'ANDROID-PREFS-NON-CHIFFRE').length, 2);
+  // Ce manifeste-ci est correct.
+  assert.deepEqual(trouves.filter((id) => id.startsWith('MOBILE-')), []);
+});
+
+test('ios natif : UserDefaults, trousseau, evaluation du certificat', async () => {
+  const trouves = ids(await analyser('ios-swift'));
+
+  assert.ok(trouves.includes('IOS-TLS-NON-EVALUE'));
+  assert.ok(trouves.includes('IOS-TROUSSEAU-TOUJOURS-ACCESSIBLE'));
+  assert.equal(trouves.filter((id) => id === 'IOS-USERDEFAULTS-SECRET').length, 2);
+});
+
+test('code mort : pas de verdict sur les langages a imports par module', async () => {
+  // Java, Kotlin, Go, C# et Swift importent des paquets, jamais des chemins :
+  // un fichier peut etre utilise partout sans qu'aucun import ne le nomme.
+  for (const nom of ['android-kotlin', 'ios-swift']) {
+    const morts = (await analyser(nom)).findings.filter((f) => f.ruleId === 'DEAD-FILE');
+    assert.deepEqual(morts, [], `${nom} : un graphe de fichiers ne conclut rien ici`);
+  }
+
+  // La detection reste active la ou elle est fondee.
+  const site = await analyser('demo-site');
+  assert.ok(site.findings.some((f) => f.ruleId === 'DEAD-FILE'));
+});

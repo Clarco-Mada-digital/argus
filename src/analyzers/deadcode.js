@@ -84,8 +84,22 @@ function buildImportGraph(files, context) {
   return { nodes, edges, reverse, importsOf, estReferenceParChaine };
 }
 
+/**
+ * Familles dont les imports designent un *fichier*, et pour lesquelles
+ * l'absence de reference dans le graphe veut donc dire quelque chose.
+ *
+ * En Java, Kotlin, Go, C# ou Swift, un import nomme un paquet ou un module,
+ * jamais un chemin : un fichier peut etre utilise partout sans qu'aucun
+ * import ne le mentionne. Y chercher du code mort avec un graphe de fichiers
+ * revient a tirer a pile ou face — le fixture Swift l'a montre, ou deux
+ * fichiers bien utilises etaient declares morts pendant que leurs equivalents
+ * Kotlin passaient par simple coincidence de nommage.
+ */
+const IMPORTS_PAR_FICHIER = new Set(['js', 'python', 'dart', 'php', 'ruby', 'rust']);
+
 function detectUnreachableFiles(files, graph, context, report) {
   for (const file of files) {
+    if (!IMPORTS_PAR_FICHIER.has(file.family)) continue;
     if (isEntryPoint(file, context)) continue;
     if (file.isTest || file.isVendored) continue;
     if (graph.reverse.has(file.relativePath)) continue;

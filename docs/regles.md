@@ -408,6 +408,32 @@ liste, et `"all": true` l'annule en une ligne.
 
 ---
 
+## Android natif — `ANDROID-*`
+
+| Règle | Gravité | Détecte |
+|---|---|---|
+| `ANDROID-TRUSTMANAGER-PERMISSIF` | critique | `checkServerTrusted` au corps vide |
+| `ANDROID-HOSTNAME-NON-VERIFIE` | critique | Vérificateur de nom d'hôte renvoyant toujours `true` |
+| `ANDROID-PREFS-NON-CHIFFRE` | haute | Secret dans `SharedPreferences` |
+| `ANDROID-WEBVIEW-ACCES-FICHIER` | haute | `allowFileAccess`, `allowUniversalAccessFromFileURLs` |
+
+Un `checkServerTrusted` vide ne lève jamais d'exception. Par contrat, cela
+signifie « ce certificat est valide » — tous le sont donc. C'est l'extrait le
+plus copié des forums pour joindre un serveur de recette, et le plus livré tel
+quel. La règle se tait si `EncryptedSharedPreferences` est utilisé.
+
+---
+
+## iOS natif — `IOS-*`
+
+| Règle | Gravité | Détecte |
+|---|---|---|
+| `IOS-TLS-NON-EVALUE` | critique | `URLCredential(trust:)` sans `SecTrustEvaluateWithError` |
+| `IOS-USERDEFAULTS-SECRET` | haute | Secret dans `UserDefaults` |
+| `IOS-TROUSSEAU-TOUJOURS-ACCESSIBLE` | moyen | `kSecAttrAccessibleAlways` |
+
+---
+
 ## Manifestes natifs — `MOBILE-*`
 
 Transverse : ces règles s'appliquent dès qu'un `AndroidManifest.xml` ou un

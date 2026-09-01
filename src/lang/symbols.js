@@ -344,6 +344,8 @@ export function isEntryPoint(file, context) {
   }
 
   if (/^(index|main|app|server|bootstrap|entry|__init__|manage|wsgi|asgi|setup|program|Program|Application)\./i.test(name)) return true;
+  // Scripts de construction : executes par l'outil de build, jamais importes.
+  if (/^(build|settings)\.gradle(\.kts)?$|^Package\.swift$|^(Makefile|Rakefile|Gemfile|Brewfile)$/.test(name)) return true;
   // Fichiers de declaration de routes : charges par convention, pas importes.
   if (/^(routes?|web|api|urls|urlpatterns|router)\.[\w]+$/i.test(name)) return true;
   // Fichiers charges par convention de framework — jamais importes explicitement :

@@ -200,7 +200,9 @@ Ces préfixes ne sont **pas des espaces de noms : ce sont des publications**. La
 | **Flutter** | Même piège, autre nom : `SharedPreferences` est un XML en clair sous Android. Et `badCertificateCallback => true`, qui désactive **toute** la validation TLS. |
 | **Tauri** | `allowlist.all: true` réduit à néant le modèle de sécurité entier de Tauri. Shell exposé, `csp: null`, `dangerousRemoteDomainIpcAccess` — une XSS sur le domaine distant devient une exécution de code locale. |
 | **Electron** | `nodeIntegration`, `contextIsolation: false`, `webSecurity: false`, contenu non chiffré. Le renderer affiche du HTML ; s'il a aussi Node, toute XSS devient un RCE. |
-| **Android / iOS** | Règle **transverse** sur `AndroidManifest.xml` et `Info.plist`, quel que soit l'outil qui les a générés : trafic en clair, `debuggable`, `allowBackup`, `NSAllowsArbitraryLoads`. Couvre donc aussi Capacitor, Ionic, Kotlin et Swift natifs. |
+| **Android natif** (Kotlin, Java) | `SharedPreferences` pour un jeton, **TrustManager au corps vide** — ne pas lever d'exception signifie « certificat valide », donc tous le sont. Nom d'hôte jamais vérifié, WebView avec accès disque. |
+| **iOS natif** (Swift, Obj-C) | `UserDefaults` pour un secret, `kSecAttrAccessibleAlways`, certificat serveur accepté sans `SecTrustEvaluate`. |
+| **Manifestes Android / iOS** | Règle **transverse** sur `AndroidManifest.xml` et `Info.plist`, quel que soit l'outil qui les a générés : trafic en clair, `debuggable`, `allowBackup`, `NSAllowsArbitraryLoads`. Couvre donc aussi Capacitor, Ionic, Kotlin et Swift natifs. |
 
 #### Une application mobile n'est pas un site web
 
