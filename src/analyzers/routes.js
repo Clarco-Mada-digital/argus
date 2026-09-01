@@ -226,6 +226,8 @@ function detectBrokenLinks(links, routes, assets, context, report) {
     if (assets.has(bare) || assets.has(`${bare}/`) || assets.has(bare.replace(/\/$/, ''))) continue;
     if (mounts.some((mount) => bare === mount || bare.startsWith(`${mount}/`))) continue;
     if (matchable.some((route) => route.regex.test(bare))) continue;
+    // Un lien vers un dossier vise son index : `/blog/` designe `/blog/index.html`.
+    if (assets.has(`${bare}/index.html`) || assets.has(`${bare === '/' ? '' : bare}/index.html`)) continue;
     if (/\.(css|js|mjs|png|jpe?g|gif|svg|webp|avif|ico|woff2?|ttf|eot|mp4|webm|pdf|json|xml|txt|zip|map)$/i.test(bare)) {
       maybeReport(link, 'ROUTE-MISSING-ASSET', 'Ressource statique introuvable',
         `Le fichier "${target}" reference ici n'existe pas dans le projet.`,

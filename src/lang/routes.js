@@ -547,9 +547,18 @@ export function extractLinks(file) {
   return links;
 }
 
-/** Resout un lien relatif par rapport au fichier qui le contient. */
+/**
+ * Resout un lien relatif par rapport au fichier qui le contient.
+ *
+ * `./`, `../` et les cibles terminees par `/` designent l'index d'un dossier :
+ * ce sont des liens parfaitement valides, qu'il ne faut pas confondre avec des
+ * chemins introuvables.
+ */
 export function resolveLink(target, fromFile) {
-  if (target.startsWith('/')) return normalizeRoute(target);
   const dir = path.posix.dirname(fromFile);
-  return normalizeRoute(path.posix.normalize(path.posix.join(dir, target)));
+  const brut = target.startsWith('/') ? target : path.posix.join(dir, target);
+  const normalise = path.posix.normalize(brut);
+  // `normalize` reduit './' et '.' a '.', qui designe la racine du perimetre.
+  if (normalise === '.' || normalise === './') return '/';
+  return normalizeRoute(normalise);
 }

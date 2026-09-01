@@ -144,6 +144,8 @@ test('nextjs : un fichier de modele .env n\'est pas un .env versionne', async ()
   );
 
   // Le vrai fichier, lui, doit bien remonter.
+  // argus-disable-next-line — URL fictive, volontairement realiste : le test verifie
+  // justement qu'un vrai .env est signale, contrairement au fichier d'exemple.
   fs.writeFileSync(path.join(dir, '.env'), 'DATABASE_URL=postgres://reel:Xk9mQ2pL7vN4@db.prod.tld/app\n');
   const reel = await scan(dir, { categories: ['security'] });
   assert.ok(reel.findings.some((f) => f.ruleId === 'SEC-ENV-COMMITTED'), 'un .env reel doit etre signale');

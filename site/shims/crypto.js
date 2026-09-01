@@ -8,6 +8,9 @@
  * Le resultat est identique a celui de Node : une baseline reste donc
  * interchangeable entre la ligne de commande et le navigateur.
  */
+// argus-disable-next-line — SHA-1 sert ici d'empreinte, jamais de protection : il
+// doit reproduire exactement le resultat de Node pour que les baselines restent
+// interchangeables. Un algorithme plus recent donnerait des empreintes differentes.
 function sha1(octets) {
   const h = [0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476, 0xc3d2e1f0];
   const longueur = octets.length;
@@ -53,6 +56,7 @@ export function createHash(algorithme) {
   let contenu = '';
   return {
     update(texte) { contenu += texte; return this; },
+    // argus-disable-next-line — meme raison : empreinte, pas condensat de securite
     digest() { return sha1(new TextEncoder().encode(contenu)); },
   };
 }

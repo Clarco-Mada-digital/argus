@@ -63,3 +63,29 @@ test('regles : les motifs compilent et ne bouclent pas', () => {
     }
   }
 });
+
+test('suppression : la directive vaut dans tout le bloc de commentaires precedent', async () => {
+  const { scan } = await import('../src/index.js');
+  const fs = await import('node:fs');
+  const os = await import('node:os');
+  const pathMod = await import('node:path');
+
+  const dir = fs.mkdtempSync(pathMod.join(os.tmpdir(), 'argus-supp-'));
+  fs.writeFileSync(
+    pathMod.join(dir, 'index.js'),
+    [
+      '// argus-disable-next-line — justification tenant sur plusieurs lignes,',
+      '// ce qui est le cas normal : on explique pourquoi avant de deroger.',
+      '// La directive n\'a donc pas a etre la derniere ligne du bloc.',
+      'eval(masque);',
+      '',
+      'eval(visible);',
+    ].join('\n'),
+  );
+
+  const r = await scan(dir, { categories: ['security'] });
+  const lignes = r.findings.filter((f) => f.ruleId === 'SEC-EVAL').map((f) => f.line);
+  assert.deepEqual(lignes, [6], 'seul l\'appel non justifie doit remonter');
+
+  fs.rmSync(dir, { recursive: true, force: true });
+});

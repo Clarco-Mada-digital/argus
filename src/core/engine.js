@@ -197,9 +197,25 @@ function isSuppressedInSource(finding, context) {
   const lines = file.lines;
   const current = lines[finding.line - 1];
   if (current && /argus-(ignore|disable)\b/.test(current)) return true;
-  const previous = finding.line > 1 ? lines[finding.line - 2] : null;
-  return Boolean(previous && /argus-disable-next-line/.test(previous));
+
+  // La directive est cherchee dans tout le bloc de commentaires qui precede
+  // immediatement, pas seulement sur la ligne d'avant : une justification tient
+  // rarement en une ligne, et exiger que la directive soit la derniere obligerait
+  // a ecrire le pourquoi avant le quoi.
+  for (let i = finding.line - 2; i >= 0; i--) {
+    const ligne = lines[i];
+    if (ligne === undefined) break;
+    const texte = ligne.trim();
+    if (texte === '') break;
+    if (!EST_COMMENTAIRE.test(texte)) break;
+    if (/argus-disable-next-line/.test(texte)) return true;
+  }
+
+  return false;
 }
+
+/** Formes de commentaire rencontrees dans les langages pris en charge. */
+const EST_COMMENTAIRE = /^(\/\/|\/\*|\*|#|--|<!--|%|;)/;
 
 function compareFindings(a, b) {
   const bySeverity = severityIndex(a.severity) - severityIndex(b.severity);

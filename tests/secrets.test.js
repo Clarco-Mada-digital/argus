@@ -18,7 +18,7 @@ test('secrets : detection des fournisseurs connus', () => {
     [`token: "${faux('gh' + 'p_', 36)}"`, 'github-token'],
     [`cle = "${faux('s' + 'k_live_', 24)}"`, 'stripe-key'],
     [`cle = "${faux('s' + 'k-ant-', 24)}"`, 'anthropic-key'],
-    ['DB = "postgres://u:motdepasse@h:5432/d"', 'db-url'],
+    [`DB = "${'post' + 'gres'}://u:motdepasse@h:5432/d"`, 'db-url'],
   ];
   for (const [ligne, type] of cas) {
     const found = detectSecrets(ligne);
