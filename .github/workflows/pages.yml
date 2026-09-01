@@ -31,16 +31,23 @@ jobs:
       # directement src/ via une carte d'imports, sans etape de construction.
       - name: Assembler le site
         run: |
+          # -L suit le lien symbolique site/src : le coeur d'Argus est copie
+          # a l'interieur du site, a l'emplacement exact que les imports
+          # attendent deja en local.
           mkdir -p _site
-          cp -r site/* _site/
-          mkdir -p _site/src && cp -r src/* _site/src/
+          cp -rL site/. _site/
 
           # Rapport de demonstration, regenere a chaque publication : ce que le
           # visiteur voit correspond toujours a la version en ligne.
           node bin/argus.js scan tests/fixtures/demo-site \
             --no-history --html _site/demo.html --silent || true
 
+      # `enablement: true` active Pages lui-meme au premier passage, en mode
+      # « build par workflow ». Sans cela, l'action echoue tant que personne
+      # n'est alle cocher l'option dans les reglages du depot.
       - uses: actions/configure-pages@v5
+        with:
+          enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site

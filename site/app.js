@@ -5,13 +5,18 @@
  * `node:path` et consorts vers les shims, et le dossier choisi par
  * l'utilisateur est charge dans un systeme de fichiers en memoire.
  *
+ * `./src` est un lien symbolique vers le coeur du projet. La disposition du
+ * site publie est ainsi identique a celle du depot : ce qui fonctionne en
+ * ouvrant le fichier en local fonctionne une fois deploye — sans reecriture
+ * de chemins a l'assemblage, donc sans divergence possible.
+ *
  * Rien ne quitte la machine : il n'y a pas de serveur. La page lit les fichiers
  * localement et affiche le resultat.
  */
 import { monter } from './shims/fs.js';
-import { loadConfig } from '../src/core/config.js';
-import { Engine } from '../src/core/engine.js';
-import { renderHtml } from '../src/report/html.js';
+import { loadConfig } from './src/core/config.js';
+import { Engine } from './src/core/engine.js';
+import { renderHtml } from './src/report/html.js';
 
 /** Extensions volumineuses et sans interet pour l'analyse : on ne les lit pas. */
 const IGNORER = /(^|\/)(node_modules|\.git|dist|build|\.next|coverage|vendor|__pycache__|\.venv|target|\.dart_tool)\//;
