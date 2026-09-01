@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Argus — analyse de projet : sécurité, SEO, code mort</title>
+<meta name="description" content="Analysez n'importe quel projet en une commande : sécurité, SEO, routes mortes, code mort, accessibilité, performance. Sans installation, sans dépendance.">
+<link rel="canonical" href="https://clarco-mada-digital.github.io/argus/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Argus — analyse de projet en une commande">
+<meta property="og:description" content="Sécurité, SEO, routes mortes, code mort, accessibilité, performance. Multi-langages, sans installation.">
+<meta property="og:url" content="https://clarco-mada-digital.github.io/argus/">
+<meta property="og:image" content="https://clarco-mada-digital.github.io/argus/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:locale" content="fr_FR">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%234c8dff'/%3E%3Cpath d='M2.5 16 Q16 3.5 29.5 16 Q16 28.5 2.5 16 Z' fill='%23fff'/%3E%3Ccircle cx='16' cy='16' r='5.4' fill='%234c8dff'/%3E%3C/svg%3E">
+<meta name="theme-color" content="#4c8dff">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Argus","applicationCategory":"DeveloperApplication","operatingSystem":"Linux, macOS, Windows","offers":{"@type":"Offer","price":"0","priceCurrency":"EUR"},"license":"https://opensource.org/licenses/MIT"}
+</script>
+<style>
+:root{
+  --bg:#0e1117;--surface:#161b22;--surface-2:#1c2230;--border:#2a3240;
+  --text:#e6edf3;--text-dim:#9aa7b6;--text-faint:#6b7785;
+  --accent:#4c8dff;--good:#3fd07f;--on-accent:#0e1117;
+  --radius:10px;--font:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:light){:root{
+  --bg:#f6f8fa;--surface:#fff;--surface-2:#f0f3f6;--border:#d8dee4;
+  --text:#1f2328;--text-dim:#59636e;--text-faint:#848d97;
+  --accent:#0969da;--good:#1a7f37;--on-accent:#fff;}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
+a{color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:4px}
+.skip{position:absolute;left:-9999px;background:var(--accent);color:var(--on-accent);padding:12px 20px;border-radius:0 0 8px 0;z-index:10}
+.skip:focus{left:0;top:0}
+.wrap{max-width:860px;margin:0 auto;padding:0 24px}
+header{padding:80px 0 48px;text-align:center}
+.mark{width:64px;height:64px;margin-bottom:20px}
+h1{font-size:clamp(2rem,6vw,3rem);margin:0 0 12px;letter-spacing:-.02em}
+.baseline{font-size:1.15rem;color:var(--text-dim);margin:0 auto 32px;max-width:34em}
+.cta{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+.btn{display:inline-block;padding:12px 24px;border-radius:999px;font-weight:600;text-decoration:none;min-height:44px}
+.btn-1{background:var(--accent);color:var(--on-accent)}
+.btn-2{background:var(--surface);color:var(--text);border:1px solid var(--border)}
+h2{font-size:1.5rem;margin:56px 0 16px;letter-spacing:-.01em}
+h3{font-size:1.05rem;margin:28px 0 8px}
+pre{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;overflow-x:auto;font-family:var(--mono);font-size:.9rem;line-height:1.7}
+code{font-family:var(--mono);font-size:.9em}
+:not(pre)>code{background:var(--surface-2);padding:2px 6px;border-radius:4px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin:24px 0}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px}
+.card h3{margin-top:0}
+.card p{margin:0;color:var(--text-dim);font-size:.95rem}
+table{width:100%;border-collapse:collapse;margin:20px 0;font-size:.95rem}
+th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--border)}
+th{font-size:.8rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-dim)}
+.note{border-left:3px solid var(--good);background:color-mix(in srgb,var(--good) 8%,transparent);padding:14px 18px;border-radius:0 var(--radius) var(--radius) 0;margin:24px 0}
+footer{border-top:1px solid var(--border);margin-top:72px;padding:28px 0 56px;color:var(--text-faint);font-size:.9rem;text-align:center}
+</style>
+</head>
+<body>
+<a class="skip" href="#contenu">Aller au contenu</a>
+
+<header>
+  <div class="wrap">
+    <svg class="mark" viewBox="0 0 32 32" role="img" aria-label="Argus">
+      <rect width="32" height="32" rx="7" fill="#4c8dff"/>
+      <path d="M2.5 16 Q16 3.5 29.5 16 Q16 28.5 2.5 16 Z" fill="#fff"/>
+      <circle cx="16" cy="16" r="5.4" fill="#4c8dff"/>
+    </svg>
+    <h1>Argus</h1>
+    <p class="baseline">Analysez n'importe quel projet en une commande : sécurité, SEO, routes mortes, code mort, accessibilité, performance. Sans installation, sans dépendance.</p>
+    <div class="cta">
+      <a class="btn btn-1" href="./analyser.html">Analyser mon projet</a>
+      <a class="btn btn-2" href="./demo.html">Voir un rapport réel</a>
+      <a class="btn btn-2" href="https://github.com/Clarco-Mada-digital/argus">Code source</a>
+    </div>
+  </div>
+</header>
+
+<main id="contenu" class="wrap">
+
+<h2>Trois façons de l'utiliser</h2>
+
+<h3>1. Dans le navigateur, sans rien installer</h3>
+<p><a href="./analyser.html">Ouvrez l'analyseur</a>, choisissez un dossier de votre ordinateur, et le rapport s'affiche. Vos fichiers ne quittent pas votre machine — la page n'a pas de serveur.</p>
+<p style="color:var(--text-dim);font-size:.95rem">Le sélecteur de dossier demande Chrome, Edge ou Opera. Les autres navigateurs utilisent un champ de fichiers classique, qui fonctionne aussi.</p>
+
+<h3>2. En ligne de commande, sans cloner</h3>
+<pre><code>npx github:Clarco-Mada-digital/argus scan ./mon-projet</code></pre>
+<p>Node.js 18 ou plus récent, rien d'autre. C'est la voie complète : rapports SARIF, mode différentiel, correctifs assistés, exploration HTTP.</p>
+
+<h3>3. Dans votre intégration continue</h3>
+<pre><code>- uses: Clarco-Mada-digital/argus@main
+  with:
+    since: origin/${{ github.base_ref }}
+    fail-on: medium</code></pre>
+
+<div class="note">
+  <strong>Rien n'est envoyé nulle part.</strong> L'analyse est entièrement locale. Deux commandes optionnelles peuvent utiliser le réseau — <code>sync</code> (base de vulnérabilités OSV) et <code>crawl</code> (audit d'un site en ligne) — et elles ne transmettent jamais votre code.
+</div>
+
+<h2>Ce qu'il trouve</h2>
+<div class="grid">
+  <div class="card"><h3>Sécurité</h3><p>Secrets versionnés, injections SQL et commandes, XSS, désérialisation, cryptographie faible. Chaque constat porte son CWE et sa catégorie OWASP.</p></div>
+  <div class="card"><h3>Routes mortes</h3><p>Liens internes qui ne mènent nulle part, pages orphelines, routes déclarées deux fois, page 404 absente.</p></div>
+  <div class="card"><h3>Code mort</h3><p>Fichiers jamais importés, exports inutilisés, code inatteignable, restes de débogage.</p></div>
+  <div class="card"><h3>SEO</h3><p>Balises, hiérarchie des titres, données structurées, robots.txt, sitemap — et les applications qui servent une page vide aux robots.</p></div>
+  <div class="card"><h3>Accessibilité</h3><p>Contrastes WCAG calculés, avec une couleur de remplacement proposée. Libellés, navigation clavier, responsive.</p></div>
+  <div class="card"><h3>Dépendances</h3><p>Vulnérabilités réelles via OSV.dev, scores CVSS calculés, paquets abandonnés.</p></div>
+</div>
+
+<h2>Frameworks reconnus</h2>
+<p>Six packs de règles dédiés, chacun validé contre un projet réaliste avant livraison :</p>
+<table>
+  <thead><tr><th>Framework</th><th>Exemple de ce qu'il attrape</th></tr></thead>
+  <tbody>
+    <tr><td>Django</td><td><code>SECRET_KEY</code> en dur, formulaire sans <code>{% csrf_token %}</code>, <code>{% url %}</code> vers une route inexistante</td></tr>
+    <tr><td>Laravel</td><td><code>env()</code> hors de <code>config/</code> — renvoie <code>null</code> après <code>config:cache</code></td></tr>
+    <tr><td>Rails</td><td><code>config/master.key</code> versionné, interpolation dans un <code>where()</code></td></tr>
+    <tr><td>Spring</td><td>Actuator ouvert : <code>/heapdump</code> expose tous les secrets en mémoire</td></tr>
+    <tr><td>Express</td><td><code>dotfiles: 'allow'</code> qui sert <code>.env</code> et <code>.git</code></td></tr>
+    <tr><td>Next.js</td><td><code>NEXT_PUBLIC_*_SECRET</code> — inlinée dans le bundle du navigateur</td></tr>
+  </tbody>
+</table>
+
+<h2>Langages</h2>
+<p>JavaScript, TypeScript, Python, Java, Kotlin, Dart, PHP, Go, Ruby, C#, Rust, HTML, CSS — et les gabarits Blade, ERB, Twig et Jinja.</p>
+
+<h2>Limites</h2>
+<p>Argus fait de l'analyse statique et lexicale : il ne construit pas d'arbre syntaxique complet et n'exécute pas votre code. Les constats marqués « tentative » demandent une lecture humaine, le code chargé dynamiquement peut être signalé à tort comme mort, et les liens construits à l'exécution ne sont pas résolus. C'est le prix d'un outil qui s'exécute en une seconde, sans rien installer.</p>
+
+</main>
+
+<footer>
+  <p>Argus — <a href="https://github.com/Clarco-Mada-digital/argus">code source</a> · licence MIT · Clarco Mada Digital</p>
+</footer>
+</body>
+</html>

@@ -1,0 +1,70 @@
+name: 'Argus'
+description: 'Analyse un projet : securite, SEO, routes mortes, code mort, accessibilite, performance, qualite et dependances.'
+author: 'Clarco Mada Digital'
+
+branding:
+  icon: 'eye'
+  color: 'blue'
+
+inputs:
+  path:
+    description: 'Dossier a analyser'
+    required: false
+    default: '.'
+  fail-on:
+    description: "Gravite a partir de laquelle l'action echoue : critical, high, medium, low, info"
+    required: false
+    default: 'high'
+  only:
+    description: 'Categories a analyser, separees par des virgules (vide = toutes)'
+    required: false
+    default: ''
+  since:
+    description: "Reference Git : ne juger que les changements. Sur une pull request, utilisez origin/\${{ github.base_ref }}"
+    required: false
+    default: ''
+  sarif:
+    description: 'Chemin du rapport SARIF a produire (vide = aucun)'
+    required: false
+    default: 'argus.sarif'
+  html:
+    description: 'Chemin du rapport HTML a produire (vide = aucun)'
+    required: false
+    default: ''
+
+outputs:
+  score:
+    description: 'Score global sur 100'
+    value: ${{ steps.argus.outputs.score }}
+  findings:
+    description: 'Nombre de problemes rapportes'
+    value: ${{ steps.argus.outputs.findings }}
+
+runs:
+  using: composite
+  steps:
+    - name: Argus
+      id: argus
+      shell: bash
+      run: |
+        set -o pipefail
+        options=()
+        [ -n "${{ inputs.only }}" ]  && options+=(--only "${{ inputs.only }}")
+        [ -n "${{ inputs.since }}" ] && options+=(--since "${{ inputs.since }}")
+        [ -n "${{ inputs.sarif }}" ] && options+=(--sarif "${{ inputs.sarif }}")
+        [ -n "${{ inputs.html }}" ]  && options+=(--html "${{ inputs.html }}")
+
+        # Une premiere passe en JSON alimente les sorties de l'action, sans
+        # jamais faire echouer l'etape : le verdict vient de la seconde.
+        node "${{ github.action_path }}/bin/argus.js" scan "${{ inputs.path }}" \
+          --no-history --format json --fail-on info > /tmp/argus.json || true
+        node -e '
+          const r = JSON.parse(require("fs").readFileSync("/tmp/argus.json", "utf8"));
+          const out = process.env.GITHUB_OUTPUT;
+          require("fs").appendFileSync(out, `score=${r.scores.global}\nfindings=${r.findings.length}\n`);
+          console.log(`Score global : ${r.scores.global}/100 (${r.scores.grade}) — ${r.findings.length} problemes`);
+        '
+
+        # Seconde passe : annotations dans la diff, et code de sortie qui tranche.
+        node "${{ github.action_path }}/bin/argus.js" scan "${{ inputs.path }}" \
+          --no-history --format github --fail-on "${{ inputs.fail-on }}" "${options[@]}"

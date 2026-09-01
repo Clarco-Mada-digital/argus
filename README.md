@@ -11,9 +11,44 @@ Argus lit votre code source, en dresse le diagnostic, note chaque dimension sur 
 
 ---
 
-## Démarrage
+## Trois façons de l'utiliser
+
+### 1. Sans rien installer — `npx`
 
 ```bash
+npx github:Clarco-Mada-digital/argus scan ./mon-projet
+```
+
+Node.js 18 ou plus récent, rien d'autre. Aucun clone, aucune installation. C'est la voie complète : rapports SARIF, mode différentiel, correctifs assistés, exploration HTTP.
+
+### 2. Dans le navigateur — sans ligne de commande
+
+**[clarco-mada-digital.github.io/argus/analyser.html](https://clarco-mada-digital.github.io/argus/analyser.html)**
+
+Choisissez un dossier de votre ordinateur : Argus l'analyse dans l'onglet et affiche le rapport. **Vos fichiers ne quittent pas votre machine** — la page n'a pas de serveur, vous pouvez couper votre connexion avant de lancer l'analyse.
+
+Ce n'est pas un portage : c'est le même cœur, avec `node:fs`, `node:path` et `node:crypto` redirigés vers des shims par une carte d'imports. Les empreintes SHA-1 sont identiques à celles de la ligne de commande, donc une baseline reste interchangeable.
+
+Le sélecteur de dossier demande un navigateur Chromium (Chrome, Edge, Opera). Ailleurs, un champ de fichiers classique prend le relais. Les fonctions liées à Git — mode différentiel, historique par commit — ne sont pas disponibles et se dégradent proprement.
+
+### 3. Dans votre intégration continue
+
+```yaml
+- uses: Clarco-Mada-digital/argus@main
+  with:
+    since: origin/${{ github.base_ref }}   # ne juger que ce que la PR ajoute
+    fail-on: medium
+```
+
+L'action publie les annotations directement dans la diff et expose `score` et `findings` en sorties.
+
+### 4. Depuis les sources
+
+```bash
+git clone https://github.com/Clarco-Mada-digital/argus.git
+cd argus
+npm run check    # linter + 171 tests, sans rien installer
+
 # Analyse du dossier courant
 node bin/argus.js
 
@@ -41,6 +76,10 @@ Pour disposer de la commande `argus` partout :
 npm link          # depuis ce dossier
 argus scan ./mon-site
 ```
+
+> Toute la suite de ce document utilise `argus …` par commodité. Remplacez par
+> `npx github:Clarco-Mada-digital/argus …` ou `node bin/argus.js …` selon votre
+> mode d'utilisation.
 
 ---
 

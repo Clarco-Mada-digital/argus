@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://clarco-mada-digital.github.io/argus/sitemap.xml
