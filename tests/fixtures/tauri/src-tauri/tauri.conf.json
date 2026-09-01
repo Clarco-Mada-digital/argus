@@ -1,0 +1,13 @@
+{
+  "build": { "distDir": "../dist", "withGlobalTauri": true },
+  "tauri": {
+    "allowlist": { "all": true, "shell": { "all": true, "execute": true } },
+    "security": {
+      "csp": null,
+      "dangerousRemoteDomainIpcAccess": [
+        { "domain": "exemple.com", "windows": ["main"], "enableTauriAPI": true }
+      ]
+    },
+    "windows": [{ "title": "Bureau", "width": 1200, "height": 800 }]
+  }
+}

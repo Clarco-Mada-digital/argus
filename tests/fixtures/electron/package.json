@@ -1,0 +1,1 @@
+{"name":"bureau-electron","main":"src/main.js","dependencies":{"electron":"^28.1.0"}}

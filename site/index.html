@@ -45,7 +45,7 @@
 <div class="zone zone-large hero">
   <div class="hero-grille">
     <div>
-      <p class="etiquette"><span class="pastille"></span> <b>Zéro dépendance</b> · 13 frameworks · 191 tests</p>
+      <p class="etiquette"><span class="pastille"></span> <b>Zéro dépendance</b> · 18 frameworks · 199 tests</p>
       <h1>Il voit ce que<br>vous ne voyez plus.<span class="fin">Une commande suffit.</span></h1>
       <p class="accroche">
         Secrets versionnés, liens qui ne mènent nulle part, code que plus personne n'appelle,
@@ -181,8 +181,9 @@
       <h2>Il connaît votre framework</h2>
     </div>
     <p class="intro-section">
-      Treize packs de règles dédiés. Chacun a été validé contre un projet réaliste construit
-      pour l'occasion — et les faux positifs mesurés <em>avant</em> livraison.
+      Dix-huit packs de règles dédiés, du serveur au mobile. Chacun a été validé contre un
+      projet réaliste construit pour l'occasion — et les faux positifs mesurés
+      <em>avant</em> livraison.
     </p>
 
     <h3 style="margin-top:var(--e4);color:var(--text-dim);font-size:.9rem;text-transform:uppercase;letter-spacing:.08em">Front et rendu</h3>
@@ -201,6 +202,27 @@
     <div class="fw"><div class="fw-nom">Rails</div><p><code>config/master.key</code> versionné, interpolation dans un <code>where()</code>, <code>params.permit!</code>.</p></div>
     <div class="fw"><div class="fw-nom">Spring Boot</div><p>Actuator ouvert : <code>/heapdump</code> expose en clair tous les secrets chargés en mémoire.</p></div>
     <div class="fw"><div class="fw-nom">Express</div><p><code>dotfiles: 'allow'</code> qui sert <code>.env</code> et <code>.git/config</code>. Trace d'exception renvoyée au client.</p></div>
+
+    <h3 style="margin-top:var(--e4);color:var(--text-dim);font-size:.9rem;text-transform:uppercase;letter-spacing:.08em">Mobile et bureau</h3>
+    <div class="fw"><div class="fw-nom">React Native · Expo</div><p><code>AsyncStorage</code> porte un nom rassurant mais <strong>écrit en clair</strong> : un jeton s'y lit sans effort sur un appareil rooté. WebView avec accès au disque.</p></div>
+    <div class="fw"><div class="fw-nom">Flutter</div><p>Même piège, autre nom : <code>SharedPreferences</code> est un XML en clair. Et <code>badCertificateCallback =&gt; true</code>, qui désactive <em>toute</em> la validation TLS.</p></div>
+    <div class="fw"><div class="fw-nom">Tauri</div><p><code>"all": true</code> dans l'allowlist réduit à néant le modèle de sécurité entier de Tauri. Shell exposé, <code>csp: null</code>, IPC ouvert à un domaine distant.</p></div>
+    <div class="fw"><div class="fw-nom">Electron</div><p><code>nodeIntegration</code>, <code>contextIsolation: false</code>, <code>webSecurity: false</code>. Le renderer affiche du HTML ; s'il a aussi Node, toute XSS devient une exécution de code.</p></div>
+    <div class="fw"><div class="fw-nom">Android · iOS</div><p>Règle <strong>transverse</strong> sur les manifestes natifs, quel que soit l'outil qui les a générés : trafic en clair, <code>debuggable</code>, <code>allowBackup</code>, ATS désactivé. Couvre aussi Capacitor, Ionic, Kotlin et Swift.</p></div>
+
+    <div class="encart">
+      <h4>Une application mobile n'est pas un site web</h4>
+      <p>
+        React Native dépend de <code>react</code>. Sans distinction, Argus en concluait « SPA » et
+        reprochait à une application mobile son <code>robots.txt</code> absent, son
+        <code>sitemap.xml</code> absent et son défaut de rendu serveur. Quatre constats, tous absurdes.
+      </p>
+      <p>
+        Il détecte désormais la <strong>plateforme visée</strong> — web, mobile, bureau — et l'affiche
+        dans le rapport. Le SEO ne s'applique qu'au web, les manifestes natifs qu'au mobile.
+        Un projet Capacitor, qui est légitimement les deux, reçoit les deux.
+      </p>
+    </div>
 
     <div class="encart" style="margin-top:var(--e4)">
       <strong>Un piège commun à tous les outils de construction.</strong>

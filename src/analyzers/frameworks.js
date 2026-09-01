@@ -23,8 +23,20 @@ export default {
       actifs.push(pack.label);
       try {
         pack.run(context, report);
-      } catch {
-        /* un pack defaillant ne doit pas interrompre l'analyse du projet */
+      } catch (erreur) {
+        // Un pack defaillant ne doit pas interrompre l'analyse du projet, mais
+        // le silence complet rend le bug introuvable : on le remonte comme un
+        // constat de faible severite, visible sans etre bloquant.
+        report({
+          ruleId: 'ARGUS-PACK-EN-ECHEC',
+          severity: 'low',
+          category: 'quality',
+          title: `Le pack ${pack.label} n'a pas pu s'executer`,
+          message: `Une erreur interne a interrompu les regles ${pack.label} : ${erreur.message}. Les autres analyses restent valides, mais ce framework n'a pas ete verifie.`,
+          suggestion: 'Signalez ce message : il s\'agit d\'un defaut d\'Argus, pas de votre code.',
+          confidence: 'firm',
+          effort: 'rapide',
+        });
       }
     }
     context.shared.set('frameworkPacks', actifs);

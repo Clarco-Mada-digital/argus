@@ -356,6 +356,86 @@ Le routage par convention est reconnu : `+page.svelte` désigne son dossier, `+p
 
 ---
 
+## React Native — `RN-*`
+
+| Règle | Gravité | Détecte |
+|---|---|---|
+| `RN-STOCKAGE-NON-CHIFFRE` | haute | Jeton, mot de passe ou identifiant écrit via `AsyncStorage` |
+| `RN-WEBVIEW-ACCES-FICHIER` | haute | WebView avec `allowFileAccess` — le contenu chargé peut lire le disque |
+
+`AsyncStorage` écrit en clair dans le bac à sable de l'application. La règle
+ignore `EncryptedStorage`, `SecureStore` et `react-native-keychain`, qui sont
+précisément la réponse attendue.
+
+---
+
+## Flutter — `FLUTTER-*`
+
+| Règle | Gravité | Détecte |
+|---|---|---|
+| `FLUTTER-TLS-DESACTIVE` | critique | `badCertificateCallback` renvoyant `true` |
+| `FLUTTER-PREFS-NON-CHIFFRE` | haute | Secret rangé dans `SharedPreferences` |
+
+Une préférence d'affichage (`theme`, `dernier_onglet`) n'est pas signalée : seuls
+les noms de clés évoquant un jeton, un mot de passe ou une session le sont.
+
+---
+
+## Tauri — `TAURI-*`
+
+| Règle | Gravité | Détecte |
+|---|---|---|
+| `TAURI-ALLOWLIST-TOTALE` | critique | `allowlist.all: true` |
+| `TAURI-SHELL-OUVERT` | critique | API shell accordée à la fenêtre |
+| `TAURI-IPC-DISTANT` | critique | `dangerousRemoteDomainIpcAccess` non vide |
+| `TAURI-CSP-ABSENTE` | haute | `security.csp: null` |
+| `TAURI-GLOBAL-EXPOSE` | moyen | `withGlobalTauri: true` |
+
+Tauri est sûr par construction : la fenêtre ne voit du système que ce que
+l'allowlist lui accorde. Tout le modèle repose donc sur la finesse de cette
+liste, et `"all": true` l'annule en une ligne.
+
+---
+
+## Electron — `ELECTRON-*`
+
+| Règle | Gravité | Détecte |
+|---|---|---|
+| `ELECTRON-NODE-INTEGRATION` | critique | `nodeIntegration: true` |
+| `ELECTRON-CONTEXT-ISOLATION` | critique | `contextIsolation: false` |
+| `ELECTRON-WEB-SECURITY` | haute | `webSecurity: false` |
+| `ELECTRON-CONTENU-NON-SUR` | haute | `allowRunningInsecureContent: true` |
+
+---
+
+## Manifestes natifs — `MOBILE-*`
+
+Transverse : ces règles s'appliquent dès qu'un `AndroidManifest.xml` ou un
+`Info.plist` est présent, quel que soit l'outil qui l'a généré — React Native,
+Flutter, Capacitor, Ionic, Kotlin ou Swift natifs.
+
+| Règle | Gravité | Détecte |
+|---|---|---|
+| `MOBILE-DEBUGGABLE` | critique | `android:debuggable="true"` |
+| `MOBILE-TRAFIC-EN-CLAIR` | haute | `android:usesCleartextTraffic="true"` |
+| `MOBILE-ATS-DESACTIVE` | haute | `NSAllowsArbitraryLoads` dans `Info.plist` |
+| `MOBILE-SAUVEGARDE-OUVERTE` | moyen | `android:allowBackup="true"` |
+
+---
+
+## Diagnostic interne — `ARGUS-*`
+
+| Règle | Gravité | Détecte |
+|---|---|---|
+| `ARGUS-PACK-EN-ECHEC` | basse | Un pack de règles a levé une exception |
+
+Un pack défaillant n'interrompt pas l'analyse, mais son échec est désormais
+visible. Le silence complet avait rendu un bug réel introuvable pendant tout un
+cycle de développement : deux packs comparaient `file.family` à `'javascript'`
+alors que la valeur est `'js'`, et ne remontaient donc rien du tout.
+
+---
+
 ## Exploration HTTP — `CRAWL-*`
 
 Ces règles ne s'activent qu'avec `argus crawl <url>` ou `--crawl <url>`. Ce sont des **faits observés** sur votre serveur, pas des déductions : toutes portent la confiance `certain`.

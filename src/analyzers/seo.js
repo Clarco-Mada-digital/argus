@@ -536,7 +536,7 @@ function validateJsonLd(page, push) {
 
 /** robots.txt, sitemap.xml, manifest, redirections. */
 function analyzeProjectFiles(context, report) {
-  const isWeb = context.has('static-site', 'nextjs', 'nuxt', 'sveltekit', 'astro', 'gatsby', 'react', 'vue', 'angular', 'django', 'laravel', 'rails', 'express');
+  const isWeb = context.cible('web');
   if (!isWeb) return;
 
   const robots = context.files.find((f) => f.name === 'robots.txt');
@@ -594,7 +594,7 @@ function analyzeProjectFiles(context, report) {
   }
 
   const hasManifest = context.files.some((f) => /^(site\.)?(web)?manifest(\.json)?$/i.test(f.name) || f.name === 'manifest.json');
-  if (!hasManifest && context.has('static-site', 'nextjs', 'nuxt', 'react', 'vue')) {
+  if (!hasManifest && context.cible('web') && context.has('static-site', 'nextjs', 'nuxt', 'react', 'vue')) {
     report({
       ruleId: 'SEO-MANIFEST-MISSING',
       severity: 'info',
@@ -609,7 +609,10 @@ function analyzeProjectFiles(context, report) {
 
 /** Une SPA sans rendu serveur est un angle mort SEO majeur. */
 function analyzeSpa(context, pages, report) {
-  const isSpa = context.has('react', 'vue', 'angular') && !context.has('nextjs', 'nuxt', 'sveltekit', 'astro', 'gatsby', 'remix');
+  const isSpa =
+    context.cible('web') &&
+    context.has('react', 'vue', 'angular') &&
+    !context.has('nextjs', 'nuxt', 'sveltekit', 'astro', 'gatsby', 'remix');
   if (!isSpa) return;
 
   const hasMetaLib = context

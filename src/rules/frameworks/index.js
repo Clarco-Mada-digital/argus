@@ -12,6 +12,11 @@ import angular from './angular.js';
 import flask from './flask.js';
 import fastapi from './fastapi.js';
 import variablesPubliques from './variables-publiques.js';
+import reactNative from './react-native.js';
+import flutter from './flutter.js';
+import tauri from './tauri.js';
+import electron from './electron.js';
+import manifestesNatifs from './manifestes-natifs.js';
 
 /**
  * Packs de regles specifiques a un framework.
@@ -29,6 +34,8 @@ export const FRAMEWORK_PACKS = [
   django, flask, fastapi, laravel, rails, spring, express,
   // Front et rendu
   react, nextjs, nuxt, astro, sveltekit, angular,
-  // Transverse : le piege du prefixe public existe partout.
-  variablesPubliques,
+  // Mobile et bureau
+  reactNative, flutter, tauri, electron,
+  // Transverse : ces pieges ne dependent pas du framework choisi.
+  variablesPubliques, manifestesNatifs,
 ];

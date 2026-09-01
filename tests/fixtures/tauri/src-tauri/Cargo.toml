@@ -1,0 +1,6 @@
+[package]
+name = "bureau-tauri"
+version = "0.1.0"
+
+[dependencies]
+tauri = { version = "1.5", features = ["shell-all"] }

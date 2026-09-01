@@ -19,6 +19,7 @@ export class ProjectContext {
 
     this.manifests = this.#readManifests();
     this.frameworks = detectFrameworks(this);
+    this.platforms = detectPlatforms(this.frameworks);
     this.stack = summarizeStack(this);
 
     /** Rempli par l'analyseur de routes, consomme par SEO et code mort. */
@@ -41,6 +42,11 @@ export class ProjectContext {
       if (languages && !languages.includes(f.language)) return false;
       return true;
     });
+  }
+
+  /** Le projet vise-t-il l'une de ces plateformes ? (`web`, `mobile`, `desktop`) */
+  cible(...plateformes) {
+    return plateformes.some((p) => this.platforms.includes(p));
   }
 
   has(...frameworkIds) {
@@ -144,6 +150,12 @@ function detectFrameworks(context) {
     tailwindcss: 'tailwind',
     'styled-components': 'styled-components',
     electron: 'electron',
+    '@tauri-apps/api': 'tauri',
+    '@capacitor/core': 'capacitor',
+    '@ionic/angular': 'ionic',
+    '@ionic/react': 'ionic',
+    'expo': 'expo',
+    'nativescript': 'nativescript',
     vite: 'vite',
     webpack: 'webpack',
   };
@@ -177,12 +189,62 @@ function detectFrameworks(context) {
   if (/from\s+flask|Flask\(/i.test(pythonHead)) found.add('flask');
   if (pythonSource.length > 0) found.add('python');
 
+  // Le manifeste natif est parfois le seul indice : un projet Tauri se
+  // reconnait a son `src-tauri`, une app Android a son AndroidManifest.
+  if (hasFile(/(^|\/)src-tauri\//) || hasFile(/(^|\/)tauri\.conf\.json$/)) found.add('tauri');
+  if (hasFile(/(^|\/)AndroidManifest\.xml$/)) found.add('android');
+  if (hasFile(/(^|\/)Info\.plist$/) || hasFile(/\.xcodeproj\//)) found.add('ios');
+  if (hasFile(/(^|\/)capacitor\.config\.(ts|js|json)$/)) found.add('capacitor');
+
   if (hasFile(/(^|\/)(pages|app)\/.*\.(jsx?|tsx?)$/) && found.has('nextjs')) found.add('nextjs-router');
   if (hasFile(/(^|\/)index\.html$/)) found.add('static-site');
   if (hasFile(/(^|\/)Dockerfile/i)) found.add('docker');
   if (hasFile(/\.github\/workflows\//)) found.add('github-actions');
 
   return [...found];
+}
+
+/**
+ * Plateformes visees par le projet.
+ *
+ * Distinction indispensable : une application React Native depend de `react`,
+ * ce qui suffisait a la faire passer pour un site et a lui reprocher l'absence
+ * de robots.txt. Le SEO, les balises meta et le rendu serveur n'ont aucun sens
+ * hors du web. Un projet peut viser plusieurs plateformes (Capacitor, Tauri).
+ */
+const PLATEFORMES = {
+  mobile: ['react-native', 'flutter', 'expo', 'capacitor', 'ionic', 'nativescript', 'android', 'ios'],
+  desktop: ['electron', 'tauri'],
+  web: [
+    'static-site', 'nextjs', 'nuxt', 'sveltekit', 'astro', 'gatsby', 'remix',
+    'react', 'vue', 'angular', 'svelte', 'react-router', 'vue-router',
+    'django', 'flask', 'fastapi', 'laravel', 'symfony', 'rails', 'spring',
+    'express', 'fastify', 'koa', 'nestjs',
+  ],
+};
+
+function detectPlatforms(frameworks) {
+  const set = new Set(frameworks);
+  const cibles = new Set();
+  for (const [plateforme, ids] of Object.entries(PLATEFORMES)) {
+    if (ids.some((id) => set.has(id))) cibles.add(plateforme);
+  }
+
+  // Une app mobile ou bureau ecrite en React embarque forcement `react` : la
+  // presence d'une plateforme native l'emporte, sauf si le projet expose aussi
+  // une vraie cible web (un site compagnon, ou une coquille Capacitor servie
+  // depuis un index.html — auquel cas les deux sont vraies).
+  if ((cibles.has('mobile') || cibles.has('desktop')) && cibles.has('web')) {
+    const webPropre = frameworks.some((id) =>
+      ['nextjs', 'nuxt', 'sveltekit', 'astro', 'gatsby', 'remix', 'django', 'flask',
+       'fastapi', 'laravel', 'symfony', 'rails', 'spring', 'express', 'fastify',
+       'koa', 'nestjs'].includes(id),
+    );
+    if (!webPropre) cibles.delete('web');
+  }
+
+  if (cibles.size === 0) cibles.add('inconnu');
+  return [...cibles];
 }
 
 function summarizeStack(context) {

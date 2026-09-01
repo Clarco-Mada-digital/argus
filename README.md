@@ -192,6 +192,22 @@ Ces préfixes ne sont **pas des espaces de noms : ce sont des publications**. La
 | **Spring Boot** | Actuator ouvert : `/heapdump` expose tous les secrets en mémoire. Console H2. |
 | **Express** | `dotfiles: 'allow'` qui sert `.env` et `.git/config`. `err.stack` renvoyé au client. |
 
+### Mobile et bureau
+
+| Plateforme | Ce qu'il attrape en propre |
+|---|---|
+| **React Native / Expo** | `AsyncStorage` porte un nom rassurant mais **écrit en clair** : un jeton s'y lit sans effort sur un appareil rooté ou via une sauvegarde. WebView avec accès au système de fichiers. |
+| **Flutter** | Même piège, autre nom : `SharedPreferences` est un XML en clair sous Android. Et `badCertificateCallback => true`, qui désactive **toute** la validation TLS. |
+| **Tauri** | `allowlist.all: true` réduit à néant le modèle de sécurité entier de Tauri. Shell exposé, `csp: null`, `dangerousRemoteDomainIpcAccess` — une XSS sur le domaine distant devient une exécution de code locale. |
+| **Electron** | `nodeIntegration`, `contextIsolation: false`, `webSecurity: false`, contenu non chiffré. Le renderer affiche du HTML ; s'il a aussi Node, toute XSS devient un RCE. |
+| **Android / iOS** | Règle **transverse** sur `AndroidManifest.xml` et `Info.plist`, quel que soit l'outil qui les a générés : trafic en clair, `debuggable`, `allowBackup`, `NSAllowsArbitraryLoads`. Couvre donc aussi Capacitor, Ionic, Kotlin et Swift natifs. |
+
+#### Une application mobile n'est pas un site web
+
+React Native dépend de `react`. Sans distinction, Argus en concluait « SPA » et reprochait à une application mobile son `robots.txt` absent, son `sitemap.xml` absent et son défaut de rendu serveur — quatre constats sur cinq, tous absurdes.
+
+Argus détecte désormais la **plateforme visée** (`web`, `mobile`, `desktop`), affichée dans le rapport. Le SEO, les balises méta et le rendu serveur ne s'appliquent qu'au web ; les règles de manifeste natif ne s'appliquent qu'au mobile. Un projet Capacitor, qui est légitimement les deux, reçoit les deux.
+
 **Les gabarits serveur sont analysés comme du HTML** : `.blade.php`, `.erb`, `.twig`, `.liquid`, `.njk`, `.jinja`. Les vues de vos projets Laravel, Rails ou Symfony bénéficient donc du SEO, de l'accessibilité et de la détection de liens morts — ce qui n'était pas le cas auparavant.
 
 Les imports sont résolus selon les conventions de chaque écosystème : **PSR-4** pour PHP (`use App\Http\Controllers\X` → `app/Http/Controllers/X.php`), modules Python, autoload Rails. Sans quoi un projet entier paraîtrait mort.

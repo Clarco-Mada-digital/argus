@@ -30,7 +30,7 @@ export default {
             severity: 'critical',
             title: 'CORS ouvert combine aux identifiants',
             message:
-              'allow_origins=["*"] avec allow_credentials=True : la specification interdit cette combinaison, et les navigateurs la rejettent. Selon la version de Starlette, l\'origine de la requete est renvoyee telle quelle — n\'importe quel site peut alors appeler votre API avec les cookies de vos utilisateurs.',
+              'allow_origins=["*"] avec allow_credentials=True : la specification interdit cette combinaison, et les navigateurs la rejettent. Selon la version de Starlette, l\'origine de la requete est renvoyee telle quelle — n\'importe quel site peut alors appeler votre API avec les cookies de vos utilisateurs.', // argus-ignore SEC-CORS-WILDCARD : ce texte decrit le motif que la regle detecte
             file: file.relativePath,
             line: index.lineOf(cors.index),
             snippet: index.textOfLine(index.lineOf(cors.index)).trim(),

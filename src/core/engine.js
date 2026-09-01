@@ -38,6 +38,7 @@ export class Engine {
       files: files.length,
       skipped,
       frameworks: context.frameworks,
+      platforms: context.platforms,
     });
 
     const findings = [];
@@ -106,6 +107,7 @@ export class Engine {
         totalBytes,
         truncated,
         frameworks: context.frameworks,
+        platforms: context.platforms,
         stack: context.stack,
         dependencies: [...context.dependencies.values()],
       },
