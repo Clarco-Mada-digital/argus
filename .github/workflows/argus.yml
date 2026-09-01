@@ -19,8 +19,11 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Tests
-        run: npm test
+      # Le clone d'Actions est deja « frais » : ce que voit la CI est exactement
+      # ce que verra un nouveau contributeur. Un fichier oublie par le
+      # .gitignore fait donc echouer ici, et pas seulement chez lui.
+      - name: Verifications
+        run: npm run check
 
       # Sur une pull request : ne signaler que ce que la branche introduit.
       # Le format `github` produit des annotations visibles dans la diff.

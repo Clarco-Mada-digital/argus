@@ -6,7 +6,8 @@
  *   1. syntaxe de chaque module (`node --check`) ;
  *   2. invariants du rapport HTML — les couleurs de texte doivent passer par
  *      des variables, sinon elles cassent en theme clair ;
- *   3. hygiene generale : pas de `debugger`, pas de `.only` oublie dans un test.
+ *   3. hygiene generale : pas de `debugger`, pas de `.only` oublie dans un test ;
+ *   4. aucun fichier necessaire aux tests n'est exclu de Git.
  */
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -57,6 +58,26 @@ for (const fichier of modules) {
     if (/^\s*debugger\b/.test(ligne)) problemes.push(`${relatif(fichier)}:${i + 1} : instruction debugger oubliee.`);
     if (/\b(test|describe|it)\.only\s*\(/.test(ligne)) problemes.push(`${relatif(fichier)}:${i + 1} : .only oublie — le reste de la suite serait ignore.`);
   });
+}
+
+// 4. Un fichier de test exclu de Git est invisible : les tests passent en local
+//    et echouent sur un clone frais. C'est arrive une fois — avec la regle
+//    `*.key` du .gitignore, qui masquait une fixture Rails.
+try {
+  const suivis = new Set(
+    execFileSync('git', ['ls-files', 'tests'], { cwd: RACINE, encoding: 'utf8' }).split('\n').filter(Boolean),
+  );
+  const surDisque = fichiers(path.join(RACINE, 'tests'), /./).map(relatif);
+  const invisibles = surDisque.filter((f) => !suivis.has(f) && !f.includes('node_modules'));
+
+  if (invisibles.length > 0) {
+    problemes.push(
+      'fichiers de test presents en local mais exclus de Git — ils manqueront ' +
+        `sur un clone frais :\n      ${invisibles.join('\n      ')}`,
+    );
+  }
+} catch {
+  /* hors depot Git : la verification ne s'applique pas */
 }
 
 function relatif(fichier) {

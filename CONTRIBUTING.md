@@ -29,6 +29,17 @@ La procédure suivie pour chaque pack livré jusqu'ici :
 Une règle qui produit du bruit coûte plus cher qu'elle ne rapporte : elle apprend
 aux utilisateurs à ignorer l'outil.
 
+## Un piège déjà rencontré
+
+Le `.gitignore` du projet exclut `*.key` — une bonne pratique. Elle a silencieusement
+exclu une fixture Rails nommée `config/master.key` : les tests passaient en local,
+et échouaient sur un clone frais.
+
+`npm run lint` vérifie désormais qu'aucun fichier de `tests/` n'est exclu de Git.
+Si votre scénario a besoin d'un fichier que le `.gitignore` doit légitimement
+exclure, **construisez-le à l'exécution** dans un dossier temporaire plutôt que
+d'ajouter une exception.
+
 ## Ajouter une règle
 
 - **Motif simple, multi-langages** → `src/rules/security.js`
