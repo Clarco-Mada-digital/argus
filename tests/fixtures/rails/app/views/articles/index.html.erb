@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Journal — articles et analyses du quotidien</title>
+  <meta name="description" content="Retrouvez chaque semaine nos analyses de fond sur l'actualite, redigees par notre equipe.">
+</head>
+<body>
+  <main>
+    <h1>Derniers articles</h1>
+    <% @articles.each do |article| %>
+      <a href="/articles/<%= article.id %>"><%= article.titre %></a>
+      <div><%= article.contenu.html_safe %></div>
+    <% end %>
+    <form method="post" action="/commentaires">
+      <label for="texte">Votre commentaire</label>
+      <textarea id="texte" name="texte"></textarea>
+      <button type="submit">Envoyer</button>
+    </form>
+  </main>
+</body>
+</html>

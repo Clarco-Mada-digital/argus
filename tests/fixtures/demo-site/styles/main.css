@@ -1,0 +1,15 @@
+:root { color: #333; }
+body { color: #999; background-color: #ffffff; font-family: Helvetica; }
+.small { font-size: 9px; }
+.btn { height: 28px; color: #aaa; background-color: #eee; }
+.btn:focus { outline: none; }
+.wide { width: 1400px; }
+.a1 { color: #1a2b3c; } .a2 { color: #2a2b3c; } .a3 { color: #3a2b3c; } .a4 { color: #4a2b3c; }
+.a5 { color: #5a2b3c; } .a6 { color: #6a2b3c; } .a7 { color: #7a2b3c; } .a8 { color: #8a2b3c; }
+.a9 { color: #9a2b3c; } .b1 { color: #ab2b3c; } .b2 { color: #bb2b3c; } .b3 { color: #cb2b3c; }
+.c1 { margin: 7px; } .c2 { padding: 13px; } .c3 { gap: 3px; } .c4 { margin: 11px; }
+.t1 { font-size: 11px } .t2 { font-size: 13px } .t3 { font-size: 15px } .t4 { font-size: 17px }
+.t5 { font-size: 19px } .t6 { font-size: 21px } .t7 { font-size: 23px } .t8 { font-size: 25px }
+.t9 { font-size: 27px } .t10 { font-size: 29px } .t11 { font-size: 31px } .t12 { font-size: 33px }
+.t13 { font-size: 35px }
+.modal { z-index: 9999; } .drop { z-index: 5000; } .toast { z-index: 10000; } .over { z-index: 99999; }

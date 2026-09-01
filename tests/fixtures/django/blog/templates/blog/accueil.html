@@ -1,0 +1,24 @@
+<!doctype html>
+<html>
+<head>
+  <title>Blog</title>
+</head>
+<body>
+  <h1>Derniers articles</h1>
+  <img src="{% static 'blog/banniere.png' %}">
+  <ul>
+  {% for article in articles %}
+    <li><a href="{% url 'detail-article' article.pk %}">{{ article.titre }}</a></li>
+    <li>{{ article.contenu|safe }}</li>
+  {% endfor %}
+  </ul>
+  <a href="/articles/">Tous les articles</a>
+  <a href="{% url 'liste-artciles' %}">Faute de frappe</a>
+  <a href="/page-inexistante/">Lien casse</a>
+  <div onclick="ouvrir()">Cliquez</div>
+  <form method="post">
+    <input type="text" name="email" placeholder="Email">
+    <button></button>
+  </form>
+</body>
+</html>

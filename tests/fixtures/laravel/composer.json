@@ -1,0 +1,4 @@
+{
+  "name": "exemple/boutique",
+  "require": { "php": "^8.1", "laravel/framework": "^9.0", "guzzlehttp/guzzle": "^7.2" }
+}

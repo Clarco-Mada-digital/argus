@@ -1,0 +1,51 @@
+{
+  "name": "argus",
+  "version": "1.0.0",
+  "description": "Analyseur de code universel : securite, routes mortes, code mort, SEO, accessibilite/design, qualite et performance.",
+  "type": "module",
+  "bin": {
+    "argus": "./bin/argus.js"
+  },
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "scan": "node bin/argus.js scan",
+    "serve": "node bin/argus.js serve",
+    "test": "node --test tests/*.test.js",
+    "selfcheck": "node bin/argus.js scan . --fail-on critical",
+    "lint": "node scripts/lint.js",
+    "check": "npm run lint && npm test"
+  },
+  "keywords": [
+    "static-analysis",
+    "security",
+    "seo",
+    "dead-code",
+    "accessibility",
+    "audit"
+  ],
+  "license": "MIT",
+  "dependencies": {},
+  "files": [
+    "bin",
+    "src",
+    "assets",
+    "docs",
+    "README.md",
+    "LICENSE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Clarco-Mada-digital/argus.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Clarco-Mada-digital/argus/issues"
+  },
+  "homepage": "https://github.com/Clarco-Mada-digital/argus#readme",
+  "author": "Clarco Mada Digital"
+}

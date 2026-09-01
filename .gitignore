@@ -1,0 +1,19 @@
+# Dependances
+node_modules/
+
+# Artefacts Argus (locaux : cache OSV, historique, sauvegardes de fix)
+.argus/
+argus-report.*
+*.sarif
+*.cpuprofile
+
+# Environnement — ne jamais versionner
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Systeme
+.DS_Store
+Thumbs.db

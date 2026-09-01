@@ -1,0 +1,14 @@
+{
+  "ignore": [
+    "tests/fixtures/**",
+    "src/rules/security.js"
+  ],
+  "disabledRules": [],
+  "failOn": "critical",
+  "options": {
+    "quality": {
+      "maxFileLines": 700
+    }
+  },
+  "_commentaire": "src/rules/security.js est la base de motifs de l'outil : elle contient par nature des exemples de code dangereux."
+}

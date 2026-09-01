@@ -1,0 +1,50 @@
+name: Analyse Argus
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Tests
+        run: npm test
+
+      # Sur une pull request : ne signaler que ce que la branche introduit.
+      # Le format `github` produit des annotations visibles dans la diff.
+      - name: Analyse des changements
+        if: github.event_name == 'pull_request'
+        run: node bin/argus.js scan . --since origin/${{ github.base_ref }} --format github --fail-on medium
+
+      - name: Analyse complete du projet
+        run: node bin/argus.js scan . --sarif argus.sarif --format github --fail-on high
+
+      # Publie les resultats dans l'onglet Security, meme si l'etape precedente echoue.
+      - name: Publication SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: argus.sarif
+          category: argus
+
+      - name: Rapport HTML en artefact
+        if: always()
+        run: node bin/argus.js scan . --html argus-report.html --silent || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rapport-argus
+          path: argus-report.html
