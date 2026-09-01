@@ -282,10 +282,18 @@ function detectOrphanRoutes(routes, links, context, report) {
     if (route.dynamic) continue; // une route dynamique est atteinte par construction
     if (/^\/(404|500|error|not-found|_)/.test(route.pattern)) continue;
 
+    // Une page statique se lie indifferemment par `/a-propos` ou
+    // `/a-propos.html` : le motif de route perd l'extension, pas les liens.
+    const formes = [route.pattern];
+    if (route.framework === 'static') {
+      formes.push(`${route.pattern}.html`, `${route.pattern}.htm`);
+      if (route.pattern === '/') formes.push('/index.html');
+    }
+
     const linked =
-      internalTargets.has(route.pattern) ||
+      formes.some((forme) => internalTargets.has(forme)) ||
       [...internalTargets].some((target) => route.regex.test(target)) ||
-      sitemapContent.includes(route.pattern);
+      formes.some((forme) => sitemapContent.includes(forme));
 
     if (linked) continue;
 

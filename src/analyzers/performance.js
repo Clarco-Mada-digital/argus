@@ -236,7 +236,10 @@ function analyzeCodePatterns(context, report) {
     },
     {
       id: 'PERF-SYNC-IO',
-      re: /\b(readFileSync|writeFileSync|execSync|existsSync)\s*\(/g,
+      re: /(?<!function\s)(?<!\.)\b(readFileSync|writeFileSync|execSync|existsSync)\s*\(/g,
+      // Une declaration n'est pas un appel : `export function existsSync(...)`
+      // decrit une API, il ne lit rien.
+      ignoreLine: /^\s*(export\s+)?(async\s+)?function\s|=>\s*\{?\s*$|^\s*(export\s+)?const\s+\w+\s*=\s*(async\s*)?\(/,
       families: ['js'],
       severity: 'medium',
       title: 'Entree/sortie synchrone',
@@ -282,6 +285,7 @@ function analyzeCodePatterns(context, report) {
       let count = 0;
       let firstOffset = null;
       for (const match of matches(file.content, pattern.re)) {
+        if (pattern.ignoreLine && pattern.ignoreLine.test(index.textOfLine(index.lineOf(match.index)))) continue;
         count++;
         if (firstOffset === null) firstOffset = match.index;
       }

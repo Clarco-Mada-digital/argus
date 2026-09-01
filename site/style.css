@@ -1,0 +1,314 @@
+/*
+ * Identite visuelle d'Argus.
+ *
+ * Deux motifs, tous deux tires du produit lui-meme plutot que d'un modele :
+ *
+ *   L'iris — anneaux concentriques. C'est deja la grammaire de la jauge du
+ *   rapport ; on la reprend en grand dans l'en-tete, puis en petit comme puce
+ *   de section. Le regard qui scrute est le sujet du logiciel.
+ *
+ *   Panoptes — le geant aux cent yeux. Une trame de points tres discrets en
+ *   fond, qui evoque la multitude de regards sans jamais gener la lecture.
+ *
+ * L'echelle de gravite (critique -> info) sert de colonne vertebrale
+ * chromatique : la meme que dans les rapports, pour que le site et l'outil
+ * parlent la meme langue.
+ */
+
+:root {
+  --bg: #0b0e14;
+  --bg-2: #0e1117;
+  --surface: #151b24;
+  --surface-2: #1b222d;
+  --border: #242c3a;
+  --border-vif: #34405360;
+  --text: #e8eef6;
+  --text-dim: #97a3b4;
+  --text-faint: #64707f;
+  --accent: #4c8dff;
+  --accent-2: #7aa9ff;
+  --on-accent: #0b0e14;
+
+  --critique: #ff5c5c;
+  --eleve: #ff8a4c;
+  --moyen: #ffc148;
+  --faible: #4cc4ff;
+  --info: #7d8896;
+  --bon: #3fd07f;
+
+  --largeur: 1280px;
+  --large: 1520px;
+  --r: 14px;
+  --r-s: 8px;
+
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, "Helvetica Neue", sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+
+  --e1: 6px; --e2: 12px; --e3: 20px; --e4: 32px; --e5: 52px; --e6: 84px; --e7: 130px;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #fbfcfd;
+    --bg-2: #f2f5f8;
+    --surface: #ffffff;
+    --surface-2: #f4f7fa;
+    --border: #dde4ec;
+    --border-vif: #4c8dff30;
+    --text: #10161f;
+    --text-dim: #4e5a68;
+    --text-faint: #7b8797;
+    --accent: #0a63d0;
+    --accent-2: #0850aa;
+    --on-accent: #ffffff;
+
+    --critique: #cf222e;
+    --eleve: #bc4c00;
+    --moyen: #9a6700;
+    --faible: #0550ae;
+    --info: #6e7781;
+    --bon: #1a7f37;
+  }
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 17px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Trame de Panoptes : des regards en fond, presque subliminaux. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    radial-gradient(circle at center, var(--accent) 0.9px, transparent 1px),
+    radial-gradient(circle at center, var(--accent) 0.9px, transparent 1px);
+  background-size: 68px 68px, 68px 68px;
+  background-position: 0 0, 34px 34px;
+  opacity: .05;
+  mask-image: radial-gradient(ellipse 90% 60% at 50% 0%, #000 20%, transparent 78%);
+}
+
+a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+a:hover { color: var(--accent-2); }
+button { font: inherit; color: inherit; cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 5px; }
+
+.saut {
+  position: absolute; left: -9999px;
+  background: var(--accent); color: var(--on-accent);
+  padding: 14px 24px; border-radius: 0 0 var(--r-s) 0; z-index: 50; font-weight: 600;
+}
+.saut:focus { left: 0; top: 0; }
+
+.zone { width: 100%; max-width: var(--largeur); margin: 0 auto; padding: 0 var(--e4); }
+/* Sur grand ecran, une marge laterale plus genereuse : sans elle, le contenu
+   colle aux bords et la page parait comprimee malgre sa largeur. */
+@media (min-width: 1100px) { .zone { padding: 0 var(--e5); } }
+.zone-large { max-width: var(--large); }
+
+/* ---------------------------------------------------------------- Bandeau */
+.bandeau {
+  position: sticky; top: 0; z-index: 30;
+  backdrop-filter: blur(14px) saturate(160%);
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  border-bottom: 1px solid var(--border);
+}
+.bandeau-i { display: flex; align-items: center; gap: var(--e3); height: 68px; }
+.logo { display: flex; align-items: center; gap: 11px; font-weight: 700; letter-spacing: .14em; font-size: 14px; text-decoration: none; color: var(--text); }
+.logo svg { width: 26px; height: 26px; }
+.nav { margin-left: auto; display: flex; gap: var(--e3); align-items: center; font-size: 15px; }
+.nav a { color: var(--text-dim); text-decoration: none; }
+.nav a:hover { color: var(--text); }
+@media (max-width: 720px) { .nav .optionnel { display: none; } }
+
+/* ------------------------------------------------------------------- Hero */
+.hero { padding: var(--e7) 0 var(--e6); }
+.hero-grille { display: grid; grid-template-columns: 1.15fr .85fr; gap: var(--e6); align-items: center; }
+@media (max-width: 940px) { .hero-grille { grid-template-columns: 1fr; gap: var(--e5); } }
+
+.etiquette {
+  display: inline-flex; align-items: center; gap: 9px;
+  font-size: 13px; font-weight: 600; letter-spacing: .04em;
+  color: var(--text-dim); background: var(--surface);
+  border: 1px solid var(--border); border-radius: 999px;
+  padding: 6px 15px 6px 9px; margin-bottom: var(--e3);
+}
+.etiquette b { color: var(--bon); font-weight: 700; }
+.pastille { width: 7px; height: 7px; border-radius: 50%; background: var(--bon); box-shadow: 0 0 0 3px color-mix(in srgb, var(--bon) 22%, transparent); }
+
+h1 {
+  font-size: clamp(2.6rem, 5.4vw, 4.4rem);
+  line-height: 1.02; letter-spacing: -.035em; font-weight: 800;
+  margin: 0 0 var(--e3);
+}
+h1 .fin { display: block; font-weight: 300; color: var(--text-dim); letter-spacing: -.02em; }
+
+.accroche { font-size: 1.2rem; color: var(--text-dim); max-width: 30em; margin: 0 0 var(--e4); }
+.accroche strong { color: var(--text); font-weight: 600; }
+
+.boutons { display: flex; gap: var(--e2); flex-wrap: wrap; }
+.b {
+  display: inline-flex; align-items: center; gap: 9px;
+  padding: 14px 26px; border-radius: 999px; font-weight: 600; font-size: 15px;
+  text-decoration: none; min-height: 48px; border: 1px solid transparent;
+  transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+}
+.b:hover { transform: translateY(-2px); }
+.b-1 { background: var(--accent); color: var(--on-accent); box-shadow: 0 6px 22px -8px var(--accent); }
+.b-1:hover { color: var(--on-accent); box-shadow: 0 12px 30px -10px var(--accent); }
+.b-2 { background: var(--surface); color: var(--text); border-color: var(--border); }
+.b-2:hover { color: var(--text); border-color: var(--accent); }
+
+/* ---------------------------------------------------- L'iris : la signature */
+.iris { position: relative; display: grid; place-items: center; aspect-ratio: 1; max-width: 460px; margin-inline: auto; width: 100%; }
+.iris svg { width: 100%; height: 100%; overflow: visible; }
+.anneau { fill: none; stroke: var(--border); stroke-width: 1.5; }
+.anneau-vif { stroke: var(--accent); opacity: .32; }
+.balayage { transform-origin: 250px 250px; animation: tourner 14s linear infinite; }
+.pupille { fill: var(--accent); }
+/* Le reflet reprend le fond de page : la pupille parait creuse, comme un vrai oeil. */
+.reflet { fill: #0b0e14; opacity: .8; }
+/* La sclere reste claire dans les deux themes : c'est ce qui fait lire la
+   forme comme un oeil. En theme clair elle se detacherait mal du fond, d'ou
+   le contour qui la delimite. */
+.oeil-blanc { fill: #f2f6fc; }
+.oeil-contour { fill: none; stroke: var(--accent); stroke-width: 2.5; opacity: .5; }
+@media (prefers-color-scheme: light) {
+  .oeil-blanc { fill: #ffffff; }
+  .oeil-contour { opacity: .9; }
+}
+.point { animation: pulser 3.4s ease-in-out infinite; }
+@keyframes tourner { to { transform: rotate(360deg); } }
+@keyframes pulser { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .balayage { animation: none; }
+  .point { animation: none; opacity: .9; }
+}
+
+/* --------------------------------------------------- Spectre de gravite */
+.spectre { display: flex; height: 3px; border-radius: 999px; overflow: hidden; margin: var(--e6) 0 0; }
+.spectre i { flex: 1; }
+.spectre i:nth-child(1) { background: var(--critique); }
+.spectre i:nth-child(2) { background: var(--eleve); }
+.spectre i:nth-child(3) { background: var(--moyen); }
+.spectre i:nth-child(4) { background: var(--faible); }
+.spectre i:nth-child(5) { background: var(--info); }
+
+/* --------------------------------------------------------------- Sections */
+section { padding: var(--e6) 0; }
+.section-bg { background: var(--bg-2); border-block: 1px solid var(--border); }
+
+.titre-section { display: flex; align-items: center; gap: var(--e2); margin: 0 0 var(--e2); }
+.titre-section svg { width: 20px; height: 20px; flex: none; opacity: .85; }
+h2 { font-size: clamp(1.7rem, 3vw, 2.3rem); letter-spacing: -.025em; font-weight: 700; margin: 0; }
+.intro-section { color: var(--text-dim); max-width: 46em; margin: 0 0 var(--e4); font-size: 1.05rem; }
+
+h3 { font-size: 1.1rem; margin: 0 0 var(--e1); letter-spacing: -.01em; }
+
+/* ------------------------------------------------------------- Terminal */
+.terminal {
+  background: #090c12; border: 1px solid var(--border); border-radius: var(--r);
+  overflow: hidden; box-shadow: 0 24px 60px -30px rgba(0,0,0,.7);
+}
+.terminal-barre { display: flex; align-items: center; gap: 7px; padding: 12px 16px; background: #0d1119; border-bottom: 1px solid var(--border); }
+.terminal-barre i { width: 11px; height: 11px; border-radius: 50%; background: #2a3240; }
+.terminal-barre span { margin-left: 10px; font-family: var(--mono); font-size: 12px; color: #64707f; }
+.terminal pre {
+  margin: 0; padding: var(--e3) var(--e4); overflow-x: auto;
+  font-family: var(--mono); font-size: 13.5px; line-height: 1.75; color: #c8d3e0;
+}
+.t-invite { color: var(--accent); }
+.t-dim { color: #5c6879; }
+.t-bon { color: #3fd07f; }
+.t-crit { color: #ff5c5c; }
+.t-elev { color: #ff8a4c; }
+.t-moy { color: #ffc148; }
+.t-fort { color: #e8eef6; font-weight: 600; }
+
+/* --------------------------------------------------------------- Cartes */
+.grille { display: grid; gap: var(--e2); }
+/* 380px : six cartes tombent en 3+3 sur grand ecran, ce qui equilibre mieux
+   qu'un 4+2 laissant un vide. */
+.g3 { grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); }
+.g2 { grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); }
+
+.carte {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--r);
+  padding: var(--e3); transition: border-color .18s ease, transform .18s ease;
+}
+.carte:hover { border-color: var(--border-vif); transform: translateY(-2px); }
+.carte p { margin: 0; color: var(--text-dim); font-size: .97rem; }
+.carte-tete { display: flex; align-items: center; gap: 10px; margin-bottom: var(--e1); }
+.carte-tete .marque { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+
+/* ------------------------------------------------------------ Frameworks */
+.fw { display: grid; grid-template-columns: 200px 1fr; gap: var(--e3); align-items: baseline; padding: var(--e3) 0; border-top: 1px solid var(--border); }
+.fw:last-child { border-bottom: 1px solid var(--border); }
+.fw-nom { font-weight: 700; font-size: 1.05rem; letter-spacing: -.01em; }
+.fw p { margin: 0; color: var(--text-dim); font-size: .97rem; }
+.fw code { color: var(--text); }
+@media (max-width: 720px) { .fw { grid-template-columns: 1fr; gap: var(--e1); } }
+
+/* ------------------------------------------------------------------ Code */
+pre.bloc {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-s);
+  padding: var(--e2) var(--e3); overflow-x: auto;
+  font-family: var(--mono); font-size: 14px; line-height: 1.7; margin: 0 0 var(--e2);
+}
+code { font-family: var(--mono); font-size: .89em; }
+:not(pre) > code { background: var(--surface-2); padding: 2px 7px; border-radius: 5px; }
+
+.encart {
+  border-left: 3px solid var(--bon);
+  background: color-mix(in srgb, var(--bon) 7%, transparent);
+  padding: var(--e2) var(--e3); border-radius: 0 var(--r-s) var(--r-s) 0;
+  margin: var(--e3) 0; font-size: .98rem;
+}
+
+/* ------------------------------------------------------------------- Pied */
+.pied { border-top: 1px solid var(--border); padding: var(--e5) 0 var(--e6); color: var(--text-faint); font-size: .94rem; }
+.pied-grille { display: flex; justify-content: space-between; gap: var(--e4); flex-wrap: wrap; align-items: center; }
+
+/* ------------------------------------------------- Page d'analyse locale */
+.depose {
+  background: var(--surface); border: 2px dashed var(--border);
+  border-radius: var(--r); padding: var(--e5) var(--e4); text-align: center;
+  transition: border-color .2s ease, background .2s ease;
+}
+.depose[data-actif="true"] { border-color: var(--accent); background: var(--surface-2); }
+.depose-oeil { width: 64px; height: 64px; margin-bottom: var(--e3); opacity: .9; }
+.etat { margin-top: var(--e3); color: var(--text-dim); min-height: 1.7em; font-family: var(--mono); font-size: 13.5px; }
+
+.echec {
+  border-left: 3px solid var(--critique);
+  background: color-mix(in srgb, var(--critique) 8%, transparent);
+  padding: var(--e2) var(--e3); border-radius: 0 var(--r-s) var(--r-s) 0; margin: var(--e3) 0;
+}
+
+.bilan { display: flex; align-items: baseline; gap: var(--e4); flex-wrap: wrap; margin-bottom: var(--e3); }
+.bilan-score { font-size: 3.4rem; font-weight: 800; line-height: 1; letter-spacing: -.03em; }
+.bilan-note { font-size: 1.05rem; color: var(--text-dim); }
+.bilan dl { display: flex; gap: var(--e4); margin: 0; }
+.bilan dt { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--text-faint); margin-bottom: 2px; }
+.bilan dd { margin: 0; font-size: 1.35rem; font-weight: 700; }
+
+/* Le rapport a besoin de place : il occupe toute la largeur utile et
+   l'essentiel de la hauteur d'ecran. C'est la page ou l'on travaille. */
+.cadre-rapport {
+  width: 100%; height: min(82vh, 1000px);
+  border: 1px solid var(--border); border-radius: var(--r);
+  background: var(--bg-2); margin-top: var(--e3);
+}

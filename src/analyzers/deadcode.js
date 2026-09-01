@@ -208,6 +208,9 @@ function isPublicApiFile(file, context) {
   // Classes autochargees par convention (Rails, Laravel, Django) : c'est le
   // framework qui les instancie, a partir d'un nom trouve dans une route.
   if (/(^|\/)app\/(controllers|models|helpers|jobs|mailers|channels|services|policies|Http|Models|Console)\//.test(file.relativePath)) return true;
+  // Cible d'une carte d'imports : c'est le navigateur qui consomme ses exports,
+  // en remplacement d'un module de plateforme. Le mimetisme de l'API est le but.
+  if (isEntryPoint(file, context) && /(^|\/)shims?\//.test(file.relativePath)) return true;
   const pkg = context.manifests['package.json']?.data;
   if (pkg?.main && file.relativePath.endsWith(pkg.main.replace(/^\.\//, ''))) return true;
   return false;

@@ -365,5 +365,36 @@ export function isEntryPoint(file, context) {
   if (/^(middleware|layout|error|loading|not-found|template|page|route|head|sitemap|robots|manifest|opengraph-image)\./.test(name)) return true;
   if (/(^|\/)(bin|scripts?|cli|tools?|public|static)\//.test(rel)) return true;
   if (/\.(html?|css|scss|less|json|ya?ml|md|toml|xml|txt|sql|sh)$/i.test(name)) return true;
+  // Cible d'une carte d'imports : c'est le navigateur qui la resout, aucun
+  // fichier JavaScript ne la mentionne.
+  if (estCibleDeCarteDImports(file, context)) return true;
   return false;
+}
+
+/**
+ * Modules references depuis un `<script type="importmap">`.
+ * Le resultat est memorise : la carte est la meme pour tout le projet.
+ */
+function estCibleDeCarteDImports(file, context) {
+  let cibles = context.shared.get('importMapTargets');
+  if (!cibles) {
+    cibles = new Set();
+    for (const page of context.files) {
+      if (page.language !== 'html' || !page.readable) continue;
+      const carte = /<script[^>]+type=["']importmap["'][^>]*>([\s\S]*?)<\/script>/i.exec(page.content);
+      if (!carte) continue;
+      try {
+        const imports = JSON.parse(carte[1]).imports || {};
+        for (const valeur of Object.values(imports)) {
+          if (typeof valeur !== 'string' || !valeur.startsWith('.')) continue;
+          const resolu = path.posix.normalize(path.posix.join(path.posix.dirname(page.relativePath), valeur));
+          cibles.add(resolu.replace(/^\.\//, ''));
+        }
+      } catch {
+        /* carte illisible : on ne peut rien en deduire */
+      }
+    }
+    context.shared.set('importMapTargets', cibles);
+  }
+  return cibles.has(file.relativePath);
 }

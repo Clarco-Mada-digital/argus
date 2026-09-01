@@ -471,6 +471,7 @@ function analyzeMarkup(file, options, report) {
 
 function collectDesignTokens(styleFiles, context) {
   const colors = new Map();
+  const colorsAsTokens = new Set();
   const fontSizes = new Set();
   const spacings = new Set();
   const breakpoints = new Set();
@@ -506,16 +507,24 @@ function collectDesignTokens(styleFiles, context) {
       fontFamilies.add(match[1].trim().split(',')[0].replace(/["']/g, '').toLowerCase());
     }
     for (const _ of matches(source, /(--[\w-]+\s*:|\$[\w-]+\s*:|@[\w-]+\s*:)/g)) variableCount++;
+    // Couleurs affectees a une variable : ce sont les jetons du systeme.
+    for (const match of matches(source, /(?:--[\w-]+|\$[\w-]+|@[\w-]+)\s*:\s*(#[0-9a-fA-F]{3,8}\b|rgba?\([^)]*\)|hsla?\([^)]*\))/g)) {
+      const parsed = parseColor(match[1]);
+      if (parsed) colorsAsTokens.add(toHex(parsed));
+    }
   }
 
-  return { colors, fontSizes, spacings, breakpoints, fontFamilies, variableCount };
+  return { colors, colorsAsTokens, fontSizes, spacings, breakpoints, fontFamilies, variableCount };
 }
 
 function analyzeDesignSystem(tokens, styleFiles, context, report) {
   if (styleFiles.length === 0 && !context.has('tailwind', 'styled-components')) return;
   const anchorFile = styleFiles[0]?.relativePath ?? null;
 
-  const distinctColors = tokens.colors.size;
+  // Une couleur definie comme variable CSS appartient a un systeme : la
+  // compter comme dispersion reviendrait a reprocher d'avoir suivi le conseil
+  // que cette regle donne elle-meme.
+  const distinctColors = tokens.colors.size - tokens.colorsAsTokens.size;
   if (distinctColors > 30) {
     const topColors = [...tokens.colors.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
     report({

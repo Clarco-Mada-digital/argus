@@ -90,6 +90,9 @@ export const promises = {
   readdir: async (c, o) => readdirSync(c, o),
   stat: async (c) => statSync(c),
   realpath: async (c) => normaliser(c),
+  // Ce systeme de fichiers est en memoire : les fonctions « Sync » lisent une
+  // Map, aucune entree/sortie reelle n'a lieu.
+  // argus-disable-next-line
   readFile: async (c) => readFileSync(c),
 };
 
