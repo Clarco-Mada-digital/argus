@@ -1,15 +1,47 @@
 import { CATEGORIES, CATEGORY_IDS, SEVERITIES, SEVERITY_WEIGHT } from './severity.js';
 
 /**
- * Score par categorie : 100 moins la penalite cumulee, amortie par la taille du
- * projet. Un depot de 5 fichiers et un depot de 5000 ne sont pas comparables :
- * on normalise la penalite par la racine du nombre de fichiers analyses.
+ * Score par categorie : 100 moins la penalite cumulee.
+ *
+ * Deux natures de constat, deux normalisations — et c'est le point important.
+ *
+ * Un defaut *grave* est absolu. Une injection SQL reste une injection SQL,
+ * que le depot compte cent fichiers ou dix mille ; la diluer dans la taille
+ * du projet reviendrait a dire qu'une grosse base de code a droit a plus de
+ * failles. L'amortissement est donc faible, et plafonne.
+ *
+ * Un defaut *mineur* est une densite. « Quarante fonctions trop longues »
+ * ne veut rien dire sans savoir sur combien de fichiers. La penalite est donc
+ * ramenee au nombre de fichiers.
+ *
+ * L'ancienne formule amortissait tout par la racine du nombre de fichiers,
+ * alors que la penalite brute, elle, croit lineairement. A qualite *egale par
+ * fichier*, le score chutait donc quand le projet grossissait : 73 a dix
+ * fichiers, 17 a cent, zero a cinq cents. La note mesurait la taille du
+ * depot autant que sa qualite, ce qui la rendait inutilisable precisement la
+ * ou elle aurait servi — sur les gros projets.
  */
+const GRAVES = new Set(['critical', 'high']);
+
 function scoreCategory(findings, fileCount) {
   if (findings.length === 0) return 100;
-  const raw = findings.reduce((sum, f) => sum + SEVERITY_WEIGHT[f.severity] * confidenceFactor(f), 0);
-  const scale = Math.max(1, Math.sqrt(Math.max(fileCount, 1)) / 3);
-  const penalty = raw / scale;
+
+  let graves = 0;
+  let mineurs = 0;
+  for (const finding of findings) {
+    const poids = SEVERITY_WEIGHT[finding.severity] * confidenceFactor(finding);
+    if (GRAVES.has(finding.severity)) graves += poids;
+    else mineurs += poids;
+  }
+
+  // Plafonne a 4 : au-dela, un projet suffisamment gros absorberait n'importe
+  // quelle faille critique sans que la note bouge.
+  const amortiGrave = Math.min(4, Math.max(1, Math.sqrt(Math.max(fileCount, 1)) / 3));
+  // Par tranche de dix fichiers : en dessous, un petit projet serait ecrase
+  // par un seul constat.
+  const amortiMineur = Math.max(10, fileCount) / 10;
+
+  const penalty = graves / amortiGrave + mineurs / amortiMineur;
   return clamp(Math.round(100 - penalty), 0, 100);
 }
 

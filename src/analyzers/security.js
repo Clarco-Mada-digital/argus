@@ -195,12 +195,24 @@ function graduerParLeFlux(file, rule, match, index, position) {
   return {};
 }
 
-/** Un fichier de test ou un exemple abaisse la severite d'un cran. */
+/**
+ * Un fichier de test ou un exemple abaisse la severite.
+ *
+ * Deux crans pour un fichier de test, un seul pour un exemple. La raison est
+ * qu'un test de securite *doit* contenir le motif qu'il verifie : c'est sa
+ * donnee d'entree. Le signaler au meme rang qu'en production revient a punir
+ * les equipes qui testent leur securite — l'incitation exacte a ne pas le
+ * faire. Le constat reste visible en `info`, jamais compte comme un probleme.
+ */
 function adjustSeverity(rule, file) {
-  if (!file.isTest && !/\b(example|sample|demo|mock|fixture)/i.test(file.relativePath)) return rule.severity;
   const order = ['critical', 'high', 'medium', 'low', 'info'];
-  const next = order[Math.min(order.length - 1, order.indexOf(rule.severity) + 1)];
-  return next;
+  const rang = order.indexOf(rule.severity);
+
+  if (file.isTest) return order[Math.min(order.length - 1, rang + 2)];
+  if (/\b(example|sample|demo|mock|fixture)/i.test(file.relativePath)) {
+    return order[Math.min(order.length - 1, rang + 1)];
+  }
+  return rule.severity;
 }
 
 /** Prise en charge des commentaires `argus-disable-next-line` / `argus-ignore`. */

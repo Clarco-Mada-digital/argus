@@ -228,6 +228,26 @@ Les imports sont résolus selon les conventions de chaque écosystème : **PSR-4
 
 Pour ajouter un framework : un module dans `src/rules/frameworks/`, référencé dans son index.
 
+## Le score mesure la qualité, pas la taille
+
+L'ancienne formule amortissait toute la pénalité par la racine du nombre de fichiers, alors que la pénalité brute, elle, croît linéairement. **À qualité égale par fichier, la note chutait donc quand le projet grossissait** : 78 à dix fichiers, 17 à cent, zéro à cinq cents. La note mesurait la taille du dépôt autant que sa qualité — inutilisable précisément là où elle aurait servi.
+
+Deux natures de constat, deux normalisations :
+
+- **Grave** (`critical`, `high`) — c'est absolu. Une injection SQL reste une injection SQL, que le dépôt compte cent fichiers ou dix mille ; la diluer dans la taille reviendrait à dire qu'une grosse base de code a droit à plus de failles. L'amortissement plafonne, donc une critique coûte toujours au moins neuf points.
+- **Mineur** (`medium` et en dessous) — c'est une densité. « Quarante fonctions trop longues » ne veut rien dire sans savoir sur combien de fichiers. La pénalité est ramenée au nombre de fichiers.
+
+L'échelle discrimine à nouveau, ce qui est le seul vrai test :
+
+| Projet | Note |
+|---|---|
+| Fixture volontairement catastrophique | **35 F** |
+| Fixture Django vulnérable | **50 E** |
+| Fixture Laravel | **66 D** |
+| Argus lui-même | **97 A+** |
+
+Trois tests verrouillent les invariants : stabilité à densité égale, coût plancher d'une faille critique, et discrimination entre deux projets de même taille.
+
 ## Rester à jour dans un écosystème qui bouge
 
 Un analyseur statique se périme de trois façons, et **une seule s'automatise**. Le détail est dans [docs/veille.md](docs/veille.md) ; l'essentiel tient en trois points.

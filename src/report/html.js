@@ -290,6 +290,16 @@ td.mono { font-family: var(--mono); font-size: 12px; }
 .stat-v { font-size: 22px; font-weight: 700; }
 .stat-l { font-size: 12px; color: var(--text-dim); }
 footer { border-top: 1px solid var(--border); padding: var(--space-5) 0; color: var(--text-faint); font-size: 12px; }
+/* Sur telephone, les onglets et les liens du rapport doivent rester visables
+   au pouce : 44 px est la recommandation, 40 px le minimum tenable sans
+   deformer la mise en page. Mesure faite au navigateur, pas estimee. */
+@media (max-width: 720px) {
+  .tab { min-height: 40px; padding-top: 8px; padding-bottom: 8px; }
+  button, .toolbar button, .toolbar select, .toolbar input { min-height: 38px; }
+  .group a, .toolbar a, footer a { display: inline-flex; align-items: center; min-height: 36px; }
+  table { display: block; overflow-x: auto; }
+  .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 @media print { .tabs, .toolbar, header.top { display: none; } .group { break-inside: avoid; } details { open: true; } }
 `;
 

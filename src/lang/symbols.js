@@ -380,7 +380,64 @@ export function isEntryPoint(file, context) {
   // Cible d'une carte d'imports : c'est le navigateur qui la resout, aucun
   // fichier JavaScript ne la mentionne.
   if (estCibleDeCarteDImports(file, context)) return true;
+  // Charge par le navigateur et non par un import : `<script src>` d'une page,
+  // ou enregistrement d'un service worker. Aucun module ne les mentionne, et
+  // ils passaient donc pour du code mort — sur le site d'Argus lui-meme.
+  if (estCharguParLeNavigateur(file, context)) return true;
   return false;
+}
+
+/**
+ * Fichiers references depuis du HTML ou une API du navigateur.
+ *
+ * Deux formes echappent au graphe d'imports :
+ *   - `<script src="./pwa.js">`, resolu par le navigateur ;
+ *   - `navigator.serviceWorker.register('./sw.js')`, ou le chemin est une
+ *     simple chaine de caracteres.
+ *
+ * Le resultat est memorise : la reponse est la meme pour tout le projet.
+ */
+function estCharguParLeNavigateur(file, context) {
+  let cibles = context.shared.get('ciblesNavigateur');
+  if (!cibles) {
+    cibles = new Set();
+
+    const ajouter = (source, chemin) => {
+      if (!chemin || /^(https?:)?\/\//.test(chemin)) return;
+      const resolu = path.posix.normalize(
+        path.posix.join(path.posix.dirname(source.relativePath), chemin.split('?')[0]),
+      );
+      cibles.add(resolu.replace(/^\.\//, ''));
+    };
+
+    for (const fichier of context.files) {
+      if (!fichier.readable) continue;
+
+      if (fichier.language === 'html') {
+        for (const m of fichier.content.matchAll(/<script[^>]+src=["']([^"']+)["']/gi)) {
+          ajouter(fichier, m[1]);
+        }
+      }
+
+      if (fichier.family === 'js') {
+        for (const m of fichier.content.matchAll(
+          /serviceWorker\s*\.\s*register\s*\(\s*["']([^"']+)["']/g,
+        )) {
+          ajouter(fichier, m[1]);
+        }
+        // `new Worker('./x.js')` releve exactement du meme mecanisme.
+        for (const m of fichier.content.matchAll(
+          /new\s+(?:Shared)?Worker\s*\(\s*["']([^"']+)["']/g,
+        )) {
+          ajouter(fichier, m[1]);
+        }
+      }
+    }
+
+    context.shared.set('ciblesNavigateur', cibles);
+  }
+
+  return cibles.has(file.relativePath);
 }
 
 /**

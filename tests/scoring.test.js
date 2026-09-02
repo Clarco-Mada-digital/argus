@@ -116,3 +116,62 @@ test('suppression : le commentaire argus-ignore vaut pour toutes les regles', as
   assert.ok(resultat.suppressed >= 2, 'les deux autres doivent etre comptes comme masques');
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test('scores : a densite egale, la note ne depend pas de la taille du projet', async () => {
+  const { buildScores } = await import('../src/core/scoring.js');
+
+  const constat = (i) => ({
+    category: 'quality',
+    severity: 'low',
+    ruleId: 'QUAL-X',
+    file: `f${i}.js`,
+    confidence: 'firm',
+  });
+
+  // Un constat mineur pour dix fichiers, quelle que soit la taille.
+  const notes = [10, 50, 200, 1000].map((fichiers) => {
+    const findings = Array.from({ length: fichiers / 10 }, (_, i) => constat(i));
+    return buildScores(findings, { fileCount: fichiers, categories: ['quality'] })
+      .categories.quality.score;
+  });
+
+  assert.equal(
+    new Set(notes).size,
+    1,
+    `la note doit etre stable a densite egale, obtenu : ${notes.join(', ')}`,
+  );
+});
+
+test('scores : une faille critique coute cher, meme dans un gros depot', async () => {
+  const { buildScores } = await import('../src/core/scoring.js');
+
+  const critique = [{
+    category: 'security', severity: 'critical', ruleId: 'SEC-X', file: 'a.js', confidence: 'firm',
+  }];
+
+  // L'amortissement plafonne : sans cela, un depot suffisamment gros
+  // absorbait n'importe quelle injection sans que la note bouge.
+  const petit = buildScores(critique, { fileCount: 20, categories: ['security'] });
+  const enorme = buildScores(critique, { fileCount: 20000, categories: ['security'] });
+
+  assert.ok(petit.categories.security.score <= 75);
+  assert.ok(
+    enorme.categories.security.score <= 91,
+    `une critique doit toujours couter au moins 9 points, obtenu ${enorme.categories.security.score}`,
+  );
+});
+
+test('scores : la densite fait la difference entre deux projets de meme taille', async () => {
+  const { buildScores } = await import('../src/core/scoring.js');
+  const bruit = (n) => Array.from({ length: n }, (_, i) => ({
+    category: 'quality', severity: 'low', ruleId: 'QUAL-X', file: `f${i}.js`, confidence: 'firm',
+  }));
+
+  const propre = buildScores(bruit(5), { fileCount: 200, categories: ['quality'] });
+  const charge = buildScores(bruit(200), { fileCount: 200, categories: ['quality'] });
+
+  assert.ok(
+    propre.categories.quality.score - charge.categories.quality.score > 20,
+    'a taille egale, la densite doit se voir',
+  );
+});

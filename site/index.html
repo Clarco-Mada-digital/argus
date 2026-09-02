@@ -32,14 +32,20 @@
 <header class="bandeau">
   <div class="zone zone-large bandeau-i">
     <a class="logo" href="./">
-      <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#4c8dff"/><path d="M2.5 16 Q16 3.5 29.5 16 Q16 28.5 2.5 16 Z" fill="#fff"/><circle cx="16" cy="16" r="5.4" fill="#4c8dff"/></svg>
-      ARGUS
+      <span class="logo-oeil" aria-hidden="true">
+        <svg viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="var(--accent)"/><path d="M2.5 16 Q16 3.5 29.5 16 Q16 28.5 2.5 16 Z" fill="#fff"/><circle cx="16" cy="16" r="5.4" fill="var(--accent)"/><circle cx="16" cy="16" r="2.1" fill="#0b1120"/></svg>
+      </span>
+      <span class="logo-texte">ARGUS<em>analyse de code</em></span>
     </a>
-    <nav class="nav">
-      <a class="optionnel" href="#trouve">Ce qu'il trouve</a>
-      <a class="optionnel" href="#frameworks">Frameworks</a>
-      <a href="./analyser.html">Analyser</a>
-      <a href="https://github.com/Clarco-Mada-digital/argus">GitHub</a>
+
+    <nav class="nav" aria-label="Navigation principale">
+      <a href="#trouve">Ce qu'il trouve</a>
+      <a href="#frameworks">Frameworks</a>
+      <a href="./demo.html">Rapport</a>
+      <a class="nav-fort" href="./analyser.html">Analyser</a>
+      <a class="nav-icone" href="https://github.com/Clarco-Mada-digital/argus" aria-label="Code source sur GitHub">
+        <svg viewBox="0 0 16 16" aria-hidden="true" width="17" height="17"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+      </a>
     </nav>
   </div>
 </header>
@@ -49,7 +55,7 @@
 <div class="zone zone-large hero">
   <div class="hero-grille">
     <div>
-      <p class="etiquette"><span class="pastille"></span> <b>Zéro dépendance</b> · 20 frameworks · 232 tests</p>
+      <p class="etiquette"><span class="pastille"></span> <b>Zéro dépendance</b> · 20 frameworks · 235 tests</p>
       <h1>Il voit ce que<br>vous ne voyez plus.<span class="fin">Une commande suffit.</span></h1>
       <p class="accroche">
         Secrets versionnés, liens qui ne mènent nulle part, code que plus personne n'appelle,
@@ -364,8 +370,35 @@
 
 <footer class="pied">
   <div class="zone zone-large pied-grille">
-    <p style="margin:0">Argus · licence MIT · Clarco Mada Digital</p>
-    <p style="margin:0"><a href="https://github.com/Clarco-Mada-digital/argus">Code source</a> · <a href="https://github.com/Clarco-Mada-digital/argus/blob/main/docs/regles.md">Référence des règles</a> · <a href="./analyser.html">Analyser un projet</a></p>
+    <div class="pied-marque">
+      <span class="logo-oeil" aria-hidden="true">
+        <svg viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="var(--accent)"/><path d="M2.5 16 Q16 3.5 29.5 16 Q16 28.5 2.5 16 Z" fill="#fff"/><circle cx="16" cy="16" r="5.4" fill="var(--accent)"/><circle cx="16" cy="16" r="2.1" fill="#0b1120"/></svg>
+      </span>
+      <p>
+        <b>Argus</b><br>
+        Analyse de code — sécurité, routes, code mort, SEO, design.<br>
+        <span class="pied-note">Zéro dépendance. Rien ne sort de votre machine.</span>
+      </p>
+    </div>
+
+    <nav class="pied-liens" aria-label="Liens de pied de page">
+      <p class="pied-titre">Le projet</p>
+      <a href="https://github.com/Clarco-Mada-digital/argus">Code source</a>
+      <a href="https://github.com/Clarco-Mada-digital/argus/blob/main/docs/regles.md">Référence des règles</a>
+      <a href="https://github.com/Clarco-Mada-digital/argus/blob/main/docs/veille.md">Rester à jour</a>
+    </nav>
+
+    <nav class="pied-liens" aria-label="Essayer Argus">
+      <p class="pied-titre">Essayer</p>
+      <a href="./analyser.html">Analyser un projet</a>
+      <a href="./demo.html">Voir un rapport réel</a>
+      <a href="https://github.com/Clarco-Mada-digital/argus/blob/main/CONTRIBUTING.md">Contribuer une règle</a>
+    </nav>
+  </div>
+
+  <div class="zone zone-large pied-bas">
+    <p>Licence MIT · Clarco Mada Digital</p>
+    <p class="pied-note">Cette page est elle-même analysée à chaque publication.</p>
   </div>
 </footer>
 <script type="module" src="./pwa.js"></script>

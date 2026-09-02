@@ -61,11 +61,42 @@ function collectPages(context) {
  * fonction dediee : elles partagent le meme contexte `c` et n'ont aucun
  * ordre d'execution impose entre elles.
  */
+/**
+ * Pages d'erreur : servies par le serveur, jamais indexees.
+ *
+ * Une page 404 *doit* porter `noindex`, n'a pas d'URL canonique, ne merite ni
+ * Open Graph ni donnees structurees, est courte par nature et n'a aucun lien
+ * entrant. Lui appliquer les regles d'une page de contenu produisait sept
+ * constats sur une page pourtant exemplaire — et poussait a la supprimer
+ * plutot qu'a la soigner.
+ */
+const REGLES_HORS_PAGE_D_ERREUR = new Set([
+  'SEO-NOINDEX',
+  'SEO-CANONICAL-MISSING',
+  'SEO-OG-MISSING',
+  'SEO-STRUCTURED-DATA',
+  'SEO-THIN-CONTENT',
+  'SEO-TITLE-SHORT',
+  'SEO-SITEMAP-MISSING',
+]);
+
+/** Accepte un fichier indexe ou un simple chemin : les appelants different. */
+export function estPageDErreur(fichierOuChemin) {
+  const chemin =
+    typeof fichierOuChemin === 'string' ? fichierOuChemin : fichierOuChemin?.relativePath;
+  if (!chemin) return false;
+  return /(^|\/)(404|403|401|500|50x|error|erreur|not[-_]?found|_error)\.[a-z]+$/i.test(chemin);
+}
+
 function analyzePage(page, context, options, report) {
   const { file, nodes, html, index } = page;
   const at = (node) => (node ? index.lineOf(node.start) : 1);
   const find = (tag) => nodes.filter((n) => n.tag === tag);
-  const push = (input) => report({ file: file.relativePath, ...input });
+  const pageDErreur = estPageDErreur(file);
+  const push = (input) => {
+    if (pageDErreur && REGLES_HORS_PAGE_D_ERREUR.has(input.ruleId)) return;
+    report({ file: file.relativePath, ...input });
+  };
 
   const htmlTag = find('html')[0];
   const head = find('head')[0];

@@ -1,3 +1,4 @@
+import { estPageDErreur } from './seo.js';
 import {
   ROUTE_EXTRACTORS,
   extractFileSystemRoutes,
@@ -296,6 +297,10 @@ function detectOrphanRoutes(routes, links, context, report) {
       formes.some((forme) => sitemapContent.includes(forme));
 
     if (linked) continue;
+    // Une page d'erreur est servie par le serveur, jamais liee : c'est le
+    // propre d'un 404. La signaler orpheline reprochait a un site d'en avoir
+    // une, alors que son absence est justement ce qu'Argus recommande.
+    if (route.file && estPageDErreur(route.file)) continue;
 
     report({
       ruleId: 'ROUTE-ORPHAN',
