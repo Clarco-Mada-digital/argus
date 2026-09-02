@@ -228,6 +228,30 @@ Les imports sont résolus selon les conventions de chaque écosystème : **PSR-4
 
 Pour ajouter un framework : un module dans `src/rules/frameworks/`, référencé dans son index.
 
+## Rester à jour dans un écosystème qui bouge
+
+Un analyseur statique se périme de trois façons, et **une seule s'automatise**. Le détail est dans [docs/veille.md](docs/veille.md) ; l'essentiel tient en trois points.
+
+**Les vulnérabilités** sont la partie automatisable : OSV.dev publie GitHub Advisories, les CVE, PyPA, RustSec et Go sous un schéma stable. `argus sync` écrit un cache local, et tout redevient hors ligne ensuite.
+
+Le vrai danger n'est pas le cache périmé, c'est la **fausse assurance** : une analyse sans constat ressemble à un projet sain, qu'elle ait consulté une base d'hier ou d'il y a six mois. La gravité suit donc l'âge — `info` avant 30 jours, `high` au-delà de 180, avec un message qui dit franchement que l'absence de constat ne prouve plus rien.
+
+Un projet peut aussi devenir vulnérable **sans qu'aucun commit ne soit poussé** : il suffit qu'un avis paraisse sur une dépendance qui n'a pas bougé. L'intégration continue classique ne le voit jamais, puisqu'elle se déclenche au push. `.github/workflows/veille.yml` couvre ce cas — rafraîchissement hebdomadaire, alerte **seulement s'il y a quelque chose à dire**, parce qu'un ticket « rien à signaler » chaque lundi finit par ne plus être lu.
+
+**Les règles de framework** demandent du travail humain : aucune dépréciation n'est publiée dans un format exploitable.
+
+### Dire ce qu'on ne couvre pas
+
+Le silence d'un analyseur est ambigu. *« Aucun problème dans votre code Vue »* peut vouloir dire que le code est propre, ou qu'aucune règle Vue n'existe. Les deux s'affichaient pareil — c'est une faiblesse de conception, pas un détail d'affichage : l'utilisateur croit avoir été vérifié.
+
+`ARGUS-COUVERTURE-PARTIELLE` le dit maintenant explicitement :
+
+```
+Pas de regles dediees : Vue, Koa
+```
+
+L'analyse générique s'applique quand même — secrets, injections, code mort, qualité, dépendances. Ce qui manque, ce sont les pièges *propres* à ces outils. Le constat existe pour qu'une catégorie vide ne soit pas prise pour un satisfecit.
+
 ## L'origine de la valeur, pas seulement le motif
 
 Le motif « concaténation dans une requête SQL » ne distingue pas ceci :

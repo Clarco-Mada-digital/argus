@@ -112,20 +112,45 @@ function checkDeprecated(dependencies, context, report) {
   }
 }
 
+/**
+ * La gravite d'un cache perime croit avec son age.
+ *
+ * A une semaine, c'est un detail. A six mois, l'absence de constat est une
+ * fausse assurance : plusieurs milliers d'avis ont ete publies entre-temps,
+ * et le rapport affiche pourtant une categorie au vert.
+ */
+function graviteDeLObsolescence(jours) {
+  if (jours >= 180) return 'high';
+  if (jours >= 90) return 'medium';
+  if (jours >= 30) return 'low';
+  return 'info';
+}
+
+function describeStaleRisk(jours) {
+  if (jours >= 180) return 'Plus de six mois : la couverture est largement perimee.';
+  if (jours >= 90) return 'Plus de trois mois de nouveaux avis manquent.';
+  if (jours >= 30) return 'Un mois d\'avis n\'est pas couvert.';
+  return 'De nouveaux avis ont pu etre publies depuis.';
+}
+
 function checkVulnerable(dependencies, installed, context, report) {
   const cache = readCache(context.root);
 
   if (cache) {
     reportFromOsv(cache, installed, context, report);
     if (cacheIsStale(cache)) {
+      const jours = Math.round(cache.ageDays);
       report({
         ruleId: 'DEP-CACHE-STALE',
-        severity: 'info',
+        severity: graviteDeLObsolescence(jours),
         title: 'Base de vulnerabilites datee',
-        message: `Le cache OSV a ${Math.round(cache.ageDays)} jours. De nouveaux avis ont pu etre publies depuis.`,
+        message:
+          `Le cache OSV a ${jours} jours. ${describeStaleRisk(jours)} ` +
+          'Le danger n\'est pas le cache en soi : c\'est qu\'une analyse sans constat ' +
+          'ressemble a un projet sain alors qu\'elle ne prouve plus rien.',
         file: manifestPath(context, 'npm'),
         line: 1,
-        suggestion: 'Relancez `argus sync` pour rafraichir la base (une requete reseau, puis tout redevient hors ligne).',
+        suggestion: 'Relancez `argus sync` pour rafraichir la base (une requete reseau, puis tout redevient hors ligne). En integration continue, planifiez-le : voir docs/veille.md.',
         effort: 'rapide',
       });
     }

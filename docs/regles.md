@@ -478,6 +478,12 @@ sur le comportement lexical d'avant.
 | Règle | Gravité | Détecte |
 |---|---|---|
 | `ARGUS-PACK-EN-ECHEC` | basse | Un pack de règles a levé une exception |
+| `ARGUS-COUVERTURE-PARTIELLE` | info | Un framework détecté n'a pas de pack dédié |
+
+`ARGUS-COUVERTURE-PARTIELLE` répond à une ambiguïté réelle : le silence d'un
+analyseur ne dit pas s'il a vérifié et rien trouvé, ou s'il n'avait rien à
+vérifier. L'analyse générique s'applique de toute façon ; ce sont les pièges
+propres à l'outil qui manquent.
 
 Un pack défaillant n'interrompt pas l'analyse, mais son échec est désormais
 visible. Le silence complet avait rendu un bug réel introuvable pendant tout un

@@ -1,0 +1,76 @@
+name: Veille des vulnerabilites
+
+# Une base de vulnerabilites ne vieillit pas doucement : elle devient fausse.
+# Un rapport sans constat issu d'un cache de six mois ressemble a un projet
+# sain, et c'est exactement le probleme — la rassurance est trompeuse.
+#
+# Ce workflow rafraichit le cache OSV chaque semaine et ouvre une alerte si de
+# nouvelles vulnerabilites apparaissent sur des dependances qui n'ont pas
+# bouge. C'est le seul cas ou un projet devient vulnerable sans qu'aucun
+# commit ne soit pousse : personne ne le verrait autrement.
+
+on:
+  schedule:
+    # Lundi 6 h UTC. Assez tot pour que le constat arrive avant la semaine.
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  veille:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Rafraichir la base OSV.dev
+        run: node bin/argus.js sync
+
+      - name: Analyser les dependances
+        id: analyse
+        run: |
+          node bin/argus.js scan . \
+            --categories dependencies \
+            --no-history \
+            --format json > rapport.json || true
+
+          node -e "
+            const r = JSON.parse(require('node:fs').readFileSync('rapport.json', 'utf8'));
+            const vulns = r.findings.filter((f) => f.ruleId === 'DEP-VULNERABLE');
+            require('node:fs').appendFileSync(process.env.GITHUB_OUTPUT, 'nombre=' + vulns.length + '\n');
+
+            const lignes = vulns.map((f) => '- **' + (f.data?.package ?? f.file) + '** — ' + f.title);
+            require('node:fs').writeFileSync('resume.md', lignes.join('\n') || 'Aucune.');
+
+            const bandeau = vulns.length
+              ? '## ' + vulns.length + ' dependance(s) vulnerable(s)\n\n' + lignes.join('\n')
+              : '## Aucune vulnerabilite connue\n\nBase OSV rafraichie ce jour.';
+            require('node:fs').appendFileSync(process.env.GITHUB_STEP_SUMMARY, bandeau + '\n');
+          "
+
+      # On n'ouvre une alerte que s'il y a quelque chose a dire : un ticket
+      # hebdomadaire « rien a signaler » finit par ne plus etre lu, et c'est
+      # ainsi qu'on rate celui qui comptait.
+      - name: Ouvrir une alerte si necessaire
+        if: steps.analyse.outputs.nombre != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          titre="Veille : ${{ steps.analyse.outputs.nombre }} dependance(s) vulnerable(s)"
+          existant=$(gh issue list --label veille --state open --json number,title \
+            --jq ".[] | select(.title | startswith(\"Veille :\")) | .number" | head -1)
+
+          corps=$(printf '%s\n\n---\n\n%s\n' \
+            "$(cat resume.md)" \
+            "Detecte par le workflow de veille, sans aucun changement de code : ces avis ont ete publies depuis la derniere analyse. Lancez \`argus scan . --categories dependencies\` en local apres un \`argus sync\`.")
+
+          if [ -n "$existant" ]; then
+            gh issue comment "$existant" --body "$corps"
+          else
+            gh issue create --title "$titre" --label veille --body "$corps"
+          fi

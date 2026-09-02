@@ -191,3 +191,38 @@ test('detection : chaque fixture est nommee pour ce qu\'elle est', async () => {
     assert.ok(rapport.project.platforms.includes(plateforme), `${nom} : ${plateforme} attendu`);
   }
 });
+
+test('couverture : l\'outil dit ce qu\'il ne couvre pas', async () => {
+  const fs = await import('node:fs');
+  const os = await import('node:os');
+  const pathMod = await import('node:path');
+
+  const dir = fs.mkdtempSync(pathMod.join(os.tmpdir(), 'argus-couv-'));
+  fs.writeFileSync(
+    pathMod.join(dir, 'package.json'),
+    JSON.stringify({ name: 't', dependencies: { vue: '3.4.21', koa: '2.15.0' } }),
+  );
+  fs.mkdirSync(pathMod.join(dir, 'src'));
+  fs.writeFileSync(pathMod.join(dir, 'src/main.js'), 'import { createApp } from "vue";\nexport default createApp({});\n');
+
+  const rapport = await scan(dir, { noHistory: true });
+  const constat = rapport.findings.find((f) => f.ruleId === 'ARGUS-COUVERTURE-PARTIELLE');
+
+  assert.ok(constat, 'un ecosysteme sans pack doit etre annonce');
+  assert.match(constat.title, /Vue/);
+  assert.match(constat.title, /Koa/);
+
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('couverture : rien n\'est annonce quand le pack existe', async () => {
+  // Django, Next.js et Expo ont leurs packs : signaler une couverture
+  // partielle serait du bruit, et le bruit detruit la valeur du signal.
+  for (const nom of ['django', 'nextjs', 'expo', 'flutter']) {
+    const rapport = await analyser(nom);
+    assert.ok(
+      !rapport.findings.some((f) => f.ruleId === 'ARGUS-COUVERTURE-PARTIELLE'),
+      `${nom} est couvert par un pack dedie`,
+    );
+  }
+});
