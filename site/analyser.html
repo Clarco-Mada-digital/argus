@@ -63,9 +63,15 @@
     <h1>Analyser un projet</h1>
   </div>
   <p class="intro-section">
-    Choisissez un dossier de votre ordinateur. Argus l'analyse ici m&#234;me, dans cet onglet.
+    Un dossier de votre ordinateur, ou une page en ligne. Argus analyse ici m&#234;me, dans cet onglet.
   </p>
 
+  <div class="onglets-analyse" role="tablist" aria-label="Mode d'analyse">
+    <button class="onglet-analyse actif" id="ong-dossier" type="button" role="tab" aria-selected="true" aria-controls="mode-dossier">Un dossier local</button>
+    <button class="onglet-analyse" id="ong-page" type="button" role="tab" aria-selected="false" aria-controls="mode-page">Une page en ligne</button>
+  </div>
+
+  <section id="mode-dossier" role="tabpanel" aria-labelledby="ong-dossier">
   <div class="encart">
     <strong>Vos fichiers ne quittent pas votre machine.</strong> Cette page n'a pas de serveur :
     elle lit le dossier localement et affiche le r&#233;sultat. Coupez votre connexion avant de lancer
@@ -83,11 +89,51 @@
     <p class="etat" id="etat" role="status" aria-live="polite"></p>
   </div>
 
+  </section>
+
+  <section id="mode-page" role="tabpanel" aria-labelledby="ong-page" hidden>
+    <div class="encart encart-limite">
+      <strong>Ce que le navigateur autorise, et ce qu'il refuse.</strong>
+      Une page ouverte dans un onglet ne peut pas lire librement un autre site : le navigateur
+      l'interdit, sauf si ce site l'autorise express&#233;ment. Un serveur interm&#233;diaire
+      contournerait la r&#232;gle, mais il recevrait votre adresse &#8212; ce qui reviendrait &#224;
+      renier ce que promet cette page. Argus essaie donc directement, et vous dit franchement
+      quand &#231;a ne passe pas.
+    </div>
+
+    <div class="champ-url">
+      <label for="url">Adresse de la page</label>
+      <div class="champ-url-ligne">
+        <input type="url" id="url" placeholder="https://exemple.com/une-page" autocomplete="url" spellcheck="false">
+        <button class="b b-1" id="analyser-url" type="button">Analyser</button>
+      </div>
+      <p class="etat" id="etat-url" role="status" aria-live="polite"></p>
+    </div>
+
+    <details class="repli-source" id="repli-source">
+      <summary>Coller le code source de la page</summary>
+      <p class="repli-aide">
+        Fonctionne toujours, sur n'importe quel site. Sur la page &#224; analyser :
+        <kbd>Ctrl</kbd>+<kbd>U</kbd> (ou <kbd>&#8984;</kbd>+<kbd>&#8997;</kbd>+<kbd>U</kbd>),
+        puis tout s&#233;lectionner et copier.
+      </p>
+      <label class="etiquette-champ" for="source">Code source de la page</label>
+      <textarea id="source" rows="8" spellcheck="false" placeholder="&lt;!doctype html&gt;&#8230;"></textarea>
+
+      <label class="etiquette-champ" for="url-source">Adresse de cette page <span>(facultatif, pour v&#233;rifier les liens)</span></label>
+      <div class="champ-url-ligne">
+        <input type="url" id="url-source" placeholder="https://exemple.com/une-page" autocomplete="url" spellcheck="false">
+        <button class="b b-2" id="analyser-source" type="button">Analyser ce code</button>
+      </div>
+    </details>
+  </section>
+
   <div id="sortie"></div>
 
   <p style="margin-top:var(--e5);color:var(--text-faint);font-size:.94rem">
-    Pour analyser un projet en une commande, sans navigateur :
-    <code>npx github:Clarco-Mada-digital/argus scan .</code>
+    Pour explorer un site entier &#8212; toutes ses pages, ses liens et ses en-t&#234;tes HTTP
+    r&#233;els &#8212; il n'y a pas de contournement possible dans un navigateur :
+    <code>npx github:Clarco-Mada-digital/argus crawl https://exemple.com</code>
   </p>
 </main>
 
@@ -126,7 +172,10 @@
 </footer>
 
 <script type="module">
-import { lireDossier, lireDepuisInput, analyser, renderHtml, supporteChoixDeDossier } from './app.js';
+import {
+  lireDossier, lireDepuisInput, analyser, analyserPage, recupererPage,
+  renderHtml, renderMarkdown, renderJson, renderSarif, supporteChoixDeDossier,
+} from './app.js';
 
 const bouton = document.getElementById('choisir');
 const repli = document.getElementById('repli');
@@ -162,6 +211,87 @@ bouton.addEventListener('click', async () => {
 repli.addEventListener('change', async () => {
   if (repli.files.length === 0) return;
   await lancer(() => lireDepuisInput(repli.files, (n) => { etat.textContent = `${n} fichiers lus…`; }));
+});
+
+// ------------------------------------------------------ Une page en ligne
+
+const onglets = [
+  [document.getElementById('ong-dossier'), document.getElementById('mode-dossier')],
+  [document.getElementById('ong-page'), document.getElementById('mode-page')],
+];
+
+for (const [onglet, panneau] of onglets) {
+  onglet.addEventListener('click', () => {
+    for (const [o, p] of onglets) {
+      const actif = o === onglet;
+      o.classList.toggle('actif', actif);
+      o.setAttribute('aria-selected', String(actif));
+      p.hidden = !actif;
+    }
+    sortie.innerHTML = '';
+  });
+}
+
+const champUrl = document.getElementById('url');
+const boutonUrl = document.getElementById('analyser-url');
+const etatUrl = document.getElementById('etat-url');
+const repliSource = document.getElementById('repli-source');
+const champSource = document.getElementById('source');
+const champUrlSource = document.getElementById('url-source');
+const boutonSource = document.getElementById('analyser-source');
+
+boutonUrl.addEventListener('click', () => analyserAdresse());
+champUrl.addEventListener('keydown', (e) => { if (e.key === 'Enter') analyserAdresse(); });
+
+async function analyserAdresse() {
+  const url = champUrl.value.trim();
+  if (!url) { etatUrl.textContent = 'Entrez une adresse.'; return; }
+
+  boutonUrl.disabled = true;
+  sortie.innerHTML = '';
+  etatUrl.textContent = 'Recuperation de la page…';
+
+  try {
+    const html = await recupererPage(url);
+    etatUrl.textContent = 'Analyse…';
+    const resultat = await analyserPage({ html, url }, (e) => {
+      if (e.type === 'phase') etatUrl.textContent = PHASES[e.phase] || 'Analyse…';
+    });
+    etatUrl.textContent = `${resultat.findings.length} constat(s).`;
+    afficher(resultat);
+  } catch (e) {
+    // Un refus du navigateur n'est pas une panne : on explique, et on ouvre
+    // la porte de service plutot que de laisser l'utilisateur devant un mur.
+    if (e.genre === 'cors') {
+      etatUrl.textContent = e.message;
+      repliSource.open = true;
+      champUrlSource.value = url;
+      champSource.focus();
+    } else {
+      etatUrl.textContent = e.message;
+    }
+  } finally {
+    boutonUrl.disabled = false;
+  }
+}
+
+boutonSource.addEventListener('click', async () => {
+  const html = champSource.value;
+  if (!html.trim()) { etatUrl.textContent = 'Collez le code source de la page.'; return; }
+
+  boutonSource.disabled = true;
+  sortie.innerHTML = '';
+  etatUrl.textContent = 'Analyse…';
+
+  try {
+    const resultat = await analyserPage({ html, url: champUrlSource.value.trim() });
+    etatUrl.textContent = `${resultat.findings.length} constat(s).`;
+    afficher(resultat);
+  } catch (e) {
+    etatUrl.textContent = e.message;
+  } finally {
+    boutonSource.disabled = false;
+  }
 });
 
 async function lancer(lecture) {
@@ -206,31 +336,64 @@ function afficher(resultat) {
 
   const html = renderHtml(resultat);
   const actions = document.createElement('div');
-  actions.className = 'boutons';
+  actions.className = 'boutons boutons-export';
 
-  const telecharger = document.createElement('button');
-  telecharger.className = 'b b-2';
-  telecharger.type = 'button';
-  telecharger.textContent = 'Télécharger le rapport';
-  telecharger.addEventListener('click', () => {
-    const lien = document.createElement('a');
-    lien.href = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
-    lien.download = 'argus-report.html';
-    lien.click();
-    URL.revokeObjectURL(lien.href);
+  // Le HTML se lit, le Markdown se colle dans un ticket ou une revue, le JSON
+  // s'automatise et le SARIF remonte dans l'onglet « Security » de GitHub.
+  // Un seul format obligerait a le reconvertir a la main.
+  const FORMATS = [
+    { nom: 'HTML', rendu: () => html, type: 'text/html', extension: 'html' },
+    { nom: 'Markdown', rendu: () => renderMarkdown(resultat), type: 'text/markdown', extension: 'md' },
+    { nom: 'JSON', rendu: () => renderJson(resultat), type: 'application/json', extension: 'json' },
+    { nom: 'SARIF', rendu: () => renderSarif(resultat), type: 'application/json', extension: 'sarif' },
+  ];
+
+  for (const format of FORMATS) {
+    const bouton = document.createElement('button');
+    bouton.className = 'b b-2';
+    bouton.type = 'button';
+    bouton.textContent = format.nom;
+    bouton.addEventListener('click', () => {
+      const lien = document.createElement('a');
+      lien.href = URL.createObjectURL(new Blob([format.rendu()], { type: format.type }));
+      lien.download = `argus-rapport.${format.extension}`;
+      lien.click();
+      URL.revokeObjectURL(lien.href);
+    });
+    actions.append(bouton);
+  }
+
+  // Le Markdown part aussi dans le presse-papier : c'est ce qu'on colle dans
+  // un ticket, une revue de code, ou une conversation avec un assistant.
+  const copier = document.createElement('button');
+  copier.className = 'b b-2';
+  copier.type = 'button';
+  copier.textContent = 'Copier en Markdown';
+  copier.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(renderMarkdown(resultat));
+      copier.textContent = 'Copié';
+      setTimeout(() => { copier.textContent = 'Copier en Markdown'; }, 1800);
+    } catch {
+      copier.textContent = 'Copie refusée par le navigateur';
+    }
   });
+  actions.append(copier);
 
   const cadre = document.createElement('iframe');
   cadre.className = 'cadre-rapport';
   cadre.title = 'Rapport d\'analyse détaillé';
   cadre.srcdoc = html;
 
-  actions.append(telecharger);
+  const legende = document.createElement('p');
+  legende.className = 'legende-export';
+  legende.textContent = 'Exporter :';
+
   const titre = document.createElement('div');
   titre.className = 'titre-section';
   titre.style.marginTop = 'var(--e5)';
   titre.innerHTML = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.6" opacity=".35"/><circle cx="12" cy="12" r="4" fill="currentColor"/></svg><h2>Résultat</h2>';
-  sortie.append(titre, resume, actions, cadre);
+  sortie.append(titre, resume, legende, actions, cadre);
 }
 
 function afficherErreur(e) {

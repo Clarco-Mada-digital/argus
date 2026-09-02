@@ -630,3 +630,92 @@ code { overflow-wrap: anywhere; }
 @media (prefers-reduced-motion: reduce) {
   .bandeau-maj { animation: none; }
 }
+
+/* ------------------------------------------------- Analyse d'une page */
+.onglets-analyse {
+  display: flex; gap: 6px; margin-bottom: var(--e4);
+  border-bottom: 1px solid var(--border);
+}
+.onglet-analyse {
+  font: inherit; font-size: .95rem; font-weight: 600;
+  color: var(--text-dim); background: none; border: none;
+  border-bottom: 2px solid transparent;
+  padding: 10px 14px; margin-bottom: -1px; min-height: 42px;
+  cursor: pointer; white-space: nowrap;
+  transition: color .16s ease, border-color .16s ease;
+}
+.onglet-analyse:hover { color: var(--text); }
+.onglet-analyse.actif { color: var(--accent); border-bottom-color: var(--accent); }
+
+.encart-limite { border-left: 3px solid var(--moyen); }
+
+.champ-url { margin-bottom: var(--e4); }
+.champ-url label {
+  display: block; margin-bottom: 8px;
+  font-size: .82rem; font-weight: 700; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--text-faint);
+}
+.champ-url-ligne { display: flex; gap: 10px; flex-wrap: wrap; }
+.champ-url input[type="url"] {
+  flex: 1 1 260px; min-width: 0;
+  font: inherit; font-size: .97rem;
+  color: var(--text); background: var(--surface);
+  border: 1px solid var(--border); border-radius: 10px;
+  padding: 11px 14px; min-height: 46px;
+}
+.champ-url input[type="url"]:focus-visible,
+.repli-source textarea:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent);
+}
+
+.repli-source {
+  border: 1px solid var(--border); border-radius: var(--r);
+  background: var(--surface-2); padding: 14px 16px;
+}
+.repli-source summary {
+  cursor: pointer; font-weight: 600; color: var(--text-dim);
+  min-height: 32px; display: flex; align-items: center;
+}
+.repli-source summary:hover { color: var(--text); }
+.repli-aide { color: var(--text-faint); font-size: .9rem; margin: 10px 0; }
+.repli-aide kbd {
+  font-family: var(--mono); font-size: .85em;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 5px; padding: 1px 6px;
+}
+.repli-source textarea {
+  width: 100%; box-sizing: border-box;
+  font-family: var(--mono); font-size: .85rem; line-height: 1.6;
+  color: var(--text); background: var(--bg);
+  border: 1px solid var(--border); border-radius: 10px;
+  padding: 12px; margin-bottom: 12px; resize: vertical;
+}
+
+.legende-export {
+  margin: var(--e4) 0 10px;
+  font-size: .82rem; font-weight: 700; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--text-faint);
+}
+.boutons-export { flex-wrap: wrap; gap: 8px; }
+.boutons-export .b { padding: 9px 16px; min-height: 42px; font-size: .92rem; }
+
+/* Les panneaux d'onglet sont des `section` : sans cela ils heritent du
+   retrait vertical generique et laissent un grand vide sous les onglets. */
+#mode-dossier, #mode-page { padding: 0; }
+
+.etiquette-champ {
+  display: block; margin-bottom: 8px;
+  font-size: .82rem; font-weight: 700; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--text-faint);
+}
+.etiquette-champ span { font-weight: 500; letter-spacing: 0; text-transform: none; }
+
+/* En dessous de 420 px, le champ et son bouton ne tiennent plus cote a cote :
+   ils s'empilent plutot que de pousser la page de trois pixels. */
+@media (max-width: 420px) {
+  .champ-url-ligne { flex-direction: column; }
+  .champ-url input[type="url"] { flex: 1 1 auto; width: 100%; }
+  .champ-url-ligne .b { width: 100%; justify-content: center; }
+  .repli-source { padding: 12px; }
+  .onglet-analyse { padding: 10px 10px; font-size: .9rem; }
+}

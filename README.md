@@ -424,6 +424,26 @@ Sur mobile, la navigation **défile** au lieu de disparaître — masquer des en
 
 Une leçon annexe, coûteuse : pendant l'audit, le service worker servait la version précédente du CSS. J'ai « corrigé » deux fois un bogue qui l'était déjà. Le script désactive maintenant le cache et contourne le worker.
 
+## Analyser une page en ligne, et exporter le résultat
+
+La page d'analyse propose deux modes : **un dossier local** et **une page en ligne**.
+
+### Ce que le navigateur autorise, et ce qu'il refuse
+
+Une page ouverte dans un onglet ne peut pas lire librement un autre site : c'est la politique de même origine, et c'est une protection, pas un défaut. Mesuré : `example.com` et MDN sont bloqués, `raw.githubusercontent.com` passe parce qu'il envoie les en-têtes appropriés.
+
+Un serveur intermédiaire contournerait la règle — au prix d'envoyer l'adresse de l'utilisateur à un tiers, ce qui renierait la promesse de cette page. **Argus essaie donc directement et dit franchement quand ça ne passe pas**, en ouvrant alors la porte de service : coller le code source de la page, qui fonctionne toujours et partout.
+
+Pour explorer un site entier — toutes ses pages, ses liens et ses en-têtes HTTP réels — il n'y a pas de contournement possible dans un navigateur :
+
+```bash
+npx github:Clarco-Mada-digital/argus crawl https://exemple.com
+```
+
+### Quatre formats d'export
+
+Le HTML se lit, le **Markdown** se colle dans un ticket ou une revue, le JSON s'automatise, et le SARIF remonte dans l'onglet « Security » de GitHub. Un bouton copie directement le Markdown dans le presse-papier.
+
 ## Le site est installable et fonctionne hors ligne
 
 L'analyseur en ligne tourne **entièrement dans l'onglet** : aucun fichier ne part sur le réseau. Il n'y avait donc aucune raison qu'il ait besoin du réseau pour se charger.

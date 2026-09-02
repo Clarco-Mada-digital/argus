@@ -17,6 +17,7 @@ import { monter } from './shims/fs.js';
 import { loadConfig } from './src/core/config.js';
 import { Engine } from './src/core/engine.js';
 import { renderHtml } from './src/report/html.js';
+import { renderJson, renderMarkdown, renderSarif } from './src/report/formats.js';
 
 /** Extensions volumineuses et sans interet pour l'analyse : on ne les lit pas. */
 const IGNORER = /(^|\/)(node_modules|\.git|dist|build|\.next|coverage|vendor|__pycache__|\.venv|target|\.dart_tool)\//;
@@ -84,7 +85,98 @@ export async function analyser({ entrees, racine }, onEvent = () => {}) {
   return resultat;
 }
 
-export { renderHtml };
+/**
+ * Nom de fichier deduit d'une adresse.
+ *
+ * Le nom compte : plusieurs regles s'appuient sur la convention
+ * (`index.html` est une page d'accueil, `404.html` une page d'erreur), et
+ * l'attribuer au hasard fausserait l'analyse.
+ */
+function nomDeFichier(url) {
+  try {
+    const chemin = new URL(url).pathname;
+    if (!chemin || chemin === '/') return 'index.html';
+    const dernier = chemin.replace(/\/$/, '').split('/').pop();
+    if (!dernier) return 'index.html';
+    return /\.[a-z0-9]+$/i.test(dernier) ? dernier : `${dernier}.html`;
+  } catch {
+    return 'index.html';
+  }
+}
+
+/**
+ * Recupere une page distante.
+ *
+ * Le navigateur interdit de lire librement un autre site : c'est la politique
+ * de meme origine, et c'est une protection, pas un defaut. Un serveur
+ * intermediaire la contournerait — au prix d'envoyer l'adresse de
+ * l'utilisateur a un tiers, ce qui renierait la promesse de cette page. On
+ * essaie donc directement et on explique quand ca ne passe pas.
+ */
+export async function recupererPage(url) {
+  let adresse;
+  try {
+    adresse = new URL(url);
+  } catch {
+    throw Object.assign(new Error('Cette adresse n\'est pas valide.'), { genre: 'adresse' });
+  }
+
+  if (adresse.protocol !== 'http:' && adresse.protocol !== 'https:') {
+    throw Object.assign(new Error('Seules les adresses http et https sont lisibles.'), { genre: 'adresse' });
+  }
+
+  let reponse;
+  try {
+    reponse = await fetch(adresse.href, { redirect: 'follow' });
+  } catch {
+    throw Object.assign(
+      new Error(
+        'Ce site n\'autorise pas la lecture depuis un autre domaine. ' +
+          'C\'est le comportement par defaut du web et il protege ses visiteurs.',
+      ),
+      { genre: 'cors' },
+    );
+  }
+
+  if (!reponse.ok) {
+    throw Object.assign(new Error(`Le serveur a repondu ${reponse.status}.`), { genre: 'http' });
+  }
+
+  const type = reponse.headers.get('content-type') || '';
+  if (type && !/html|xml|text\/plain/i.test(type)) {
+    throw Object.assign(
+      new Error(`Cette adresse renvoie « ${type.split(';')[0]} », pas une page HTML.`),
+      { genre: 'type' },
+    );
+  }
+
+  return reponse.text();
+}
+
+/**
+ * Analyse une page unique, recuperee ou collee.
+ *
+ * Les categories sont restreintes a ce qu'un document isole permet de juger.
+ * Le code mort et les dependances demandent un projet ; les affirmer sur une
+ * seule page produirait des constats faux.
+ */
+export async function analyserPage({ html, url = '' }, onEvent = () => {}) {
+  if (!html || !html.trim()) throw new Error('Aucun contenu a analyser.');
+
+  const nom = nomDeFichier(url);
+  monter([[`page/${nom}`, html]]);
+
+  const config = loadConfig('/page', {
+    baseline: null,
+    useGitignore: false,
+    categories: ['seo', 'design', 'performance', 'routes', 'security'],
+    siteUrl: url || undefined,
+  });
+
+  return new Engine(config, { onEvent }).run();
+}
+
+export { renderHtml, renderMarkdown, renderJson, renderSarif };
 
 /** Le navigateur prend-il en charge le choix d'un dossier ? */
 export const supporteChoixDeDossier = typeof globalThis.showDirectoryPicker === 'function';
