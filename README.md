@@ -346,6 +346,24 @@ Ce qui reste global le reste volontairement : le graphe d'imports et la détecti
 
 Les dossiers de plateforme native (`android/`, `ios/`, `src-tauri/`) ne sont pas séparés : ce sont des cibles de compilation, et les isoler priverait le pack mobile du contexte de son application.
 
+## Mise en page adaptative, mesurée et non estimée
+
+Relire une feuille de style pour juger de son adaptabilité ne marche pas. Les deux bogues trouvés ici étaient **invisibles à la lecture** :
+
+1. Un enfant de grille ou de flex a `min-width: auto` par défaut. Il refuse de descendre sous la largeur de son contenu, donc le conteneur grandit — *même si* `overflow-x: auto` est correctement posé sur l'enfant, ce qui donne l'illusion que le problème est traité.
+2. `minmax(380px, 1fr)` ne descend jamais sous 380 px. Sur un écran de 320 px, la colonne déborde au lieu de se replier. Le correctif tient en un mot : `minmax(min(380px, 100%), 1fr)`.
+
+`scripts/audit-responsive.js` pilote un vrai navigateur et demande, à six largeurs, quels éléments sortent du cadre — en écartant ceux qui sont écrêtés par un ancêtre défilable, sans quoi le vrai coupable se noie dans le bruit. Il vérifie aussi les cibles tactiles.
+
+```
+node scripts/audit-responsive.js
+✔ 4 pages × 6 largeurs : aucun debordement.
+```
+
+Sur mobile, la navigation **défile** au lieu de disparaître — masquer des entrées prive le visiteur de la moitié du site pour épargner 40 px — avec un dégradé de bord qui signale qu'elle glisse. Sans lui, la pastille coupée se lit comme un défaut d'affichage.
+
+Une leçon annexe, coûteuse : pendant l'audit, le service worker servait la version précédente du CSS. J'ai « corrigé » deux fois un bogue qui l'était déjà. Le script désactive maintenant le cache et contourne le worker.
+
 ## Le site est installable et fonctionne hors ligne
 
 L'analyseur en ligne tourne **entièrement dans l'onglet** : aucun fichier ne part sur le réseau. Il n'y avait donc aucune raison qu'il ait besoin du réseau pour se charger.
