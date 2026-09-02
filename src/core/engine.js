@@ -5,6 +5,7 @@ import { ProjectContext } from './project.js';
 import { buildActionPlan, buildScores } from './scoring.js';
 import { atLeast } from './severity.js';
 import { constatDansSonDomaine } from './domaines.js';
+import { traduireConstat } from '../i18n/index.js';
 import { loadBaseline } from './config.js';
 import { analyzers as builtinAnalyzers } from '../analyzers/index.js';
 import { changedFiles, describeRef } from './git.js';
@@ -212,7 +213,10 @@ export class Engine {
       const key = `${finding.fingerprint}:${finding.line}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      kept.push(finding);
+      // La traduction est posee en sortie, une fois toutes les decisions
+      // prises : les regles, les seuils et les suppressions raisonnent sur les
+      // identifiants, jamais sur le texte affiche.
+      kept.push(traduireConstat(finding));
     }
     return { kept, suppressed };
   }

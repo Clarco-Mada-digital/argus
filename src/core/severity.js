@@ -30,6 +30,23 @@ export function atLeast(severity, threshold) {
   return severityRank(severity) <= severityRank(threshold);
 }
 
+import { t } from '../i18n/index.js';
+
+/**
+ * Libelles traduits a la lecture.
+ *
+ * Les identifiants (`security`, `critical`) ne changent jamais : ils servent
+ * de clefs partout, dans la configuration comme dans les rapports archives.
+ * Seul l'affichage suit la langue.
+ */
+export function libelleCategorie(id) {
+  return t(`categorie.${id}`);
+}
+
+export function libelleGravite(id) {
+  return t(`gravite.${id}`);
+}
+
 export const CATEGORIES = {
   security: { label: 'Securite', icon: 'shield', weight: 3 },
   routes: { label: 'Routes & liens', icon: 'route', weight: 2 },

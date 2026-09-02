@@ -12,6 +12,7 @@ import { SECURITY_RULES } from '../src/rules/security.js';
 import { startServer } from '../src/server/index.js';
 import { syncOsv } from '../src/core/osv.js';
 import { renderRevue } from '../src/report/revue.js';
+import { definirLangue, resoudreLangue, LANGUES } from '../src/i18n/index.js';
 import { resolveInstalledVersions } from '../src/core/lockfiles.js';
 import { walkProject } from '../src/core/walker.js';
 import { ProjectContext } from '../src/core/project.js';
@@ -36,6 +37,10 @@ async function main() {
   // `argus ./site` vaut `argus scan ./site` : le premier argument n'est une
   // commande que s'il en porte le nom.
   const COMMANDS = ['scan', 'serve', 'mcp', 'perf', 'fuites', 'init', 'rules', 'baseline', 'sync', 'fix', 'crawl', 'history', 'help'];
+  // La langue est fixee avant toute production de texte : un rapport a moitie
+  // traduit vient toujours d'un reglage arrive trop tard.
+  definirLangue(resoudreLangue({ option: options.lang }));
+
   const first = positional[0];
   const isCommand = first !== undefined && COMMANDS.includes(first);
   const command = isCommand ? first : 'scan';

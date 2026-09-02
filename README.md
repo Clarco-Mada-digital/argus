@@ -424,6 +424,32 @@ Sur mobile, la navigation **défile** au lieu de disparaître — masquer des en
 
 Une leçon annexe, coûteuse : pendant l'audit, le service worker servait la version précédente du CSS. J'ai « corrigé » deux fois un bogue qui l'était déjà. Le script désactive maintenant le cache et contourne le worker.
 
+## Anglais : l'infrastructure, et un premier tiers
+
+```bash
+argus scan . --lang en        # ou ARGUS_LANG=en, ou LANG=en_US.UTF-8
+```
+
+Le français est la **version de référence** : les messages y ont été écrits, pas traduits. L'anglais est un calque posé par-dessus, ce qui a une conséquence pratique décisive — **une chaîne non traduite s'affiche en français plutôt que de disparaître ou d'exposer sa clef**. Un message dans la mauvaise langue reste lisible et actionnable ; `rules.SEC_EVAL.message` à l'écran ne l'est pas. La traduction peut donc avancer par morceaux sans jamais casser l'outil.
+
+| | État |
+|---|---|
+| Interface (libellés, en-têtes, commandes) | **66 / 66 — 100 %** |
+| Règles de sécurité | **43 / 46 — 93 %** |
+| Ensemble des règles | **43 / 272 — 16 %** |
+
+```bash
+node scripts/traduction.js --reste   # ce qui manque, par catégorie
+```
+
+### Ce qui reste, et pourquoi ce n'est pas fini
+
+**229 règles.** Ce ne sont pas des étiquettes mais de la prose explicative — c'est elle qui dit *pourquoi* un constat compte, et c'est la valeur du projet. Les traduire à la chaîne les abîmerait ; elles méritent une passe dédiée, pas une fin de session.
+
+**Un obstacle de nature différente** pour 21 % d'entre elles : les messages construits au moment de la détection (`« ${clé} » provient d'une entrée externe`) n'existent pas avant d'être produits. Le calque ne peut rien pour eux — il faut passer par `t()` à chaque site de construction, ce qui touche tous les analyseurs. C'est un refactor, pas une traduction.
+
+Les trois règles de sécurité manquantes (`SEC-GITIGNORE-ENV`, `SEC-NO-GITIGNORE`, `SEC-VENDOR-COMMITTED`) relèvent exactement de ce cas.
+
 ## Revue de pull request
 
 `argus scan . --since main` n'analyse que les fichiers modifiés par la branche. Le format `revue` en fait un commentaire de pull request, et `.github/workflows/revue-pr.yml` le poste.
