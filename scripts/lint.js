@@ -95,12 +95,29 @@ try {
   const page = fs.readFileSync(path.join(RACINE, 'site/analyser.html'), 'utf8');
   const carte = JSON.parse(page.match(/<script type="importmap">([\s\S]*?)<\/script>/)[1]).imports;
 
+  // On ne considere que les modules *reellement atteignables* depuis le point
+  // d'entree du navigateur. Balayer tout src/ signalait `node:os`, importe par
+  // le pilote de navigateur de `argus perf` — un fichier que la page ne charge
+  // jamais. Un garde-fou qui crie a tort finit par etre desactive.
+  const racineNavigateur = path.join(RACINE, 'src/index.js');
+  const vus = new Set();
   const specificateurs = new Set();
-  for (const fichier of modules.filter((f) => f.includes(`${path.sep}src${path.sep}`))) {
-    for (const m of fs.readFileSync(fichier, 'utf8').matchAll(/from\s+'(node:[^']+)'/g)) {
-      specificateurs.add(m[1]);
+
+  const suivre = (fichier) => {
+    if (vus.has(fichier) || !fs.existsSync(fichier)) return;
+    vus.add(fichier);
+
+    const contenu = fs.readFileSync(fichier, 'utf8');
+    for (const m of contenu.matchAll(/from\s+'([^']+)'|import\('([^']+)'\)/g)) {
+      const cible = m[1] ?? m[2];
+      if (!cible) continue;
+      if (cible.startsWith('node:')) { specificateurs.add(cible); continue; }
+      if (!cible.startsWith('.')) continue;
+      suivre(path.resolve(path.dirname(fichier), cible));
     }
-  }
+  };
+
+  suivre(racineNavigateur);
 
   const absents = [...specificateurs].filter((s) => !carte[s]);
   if (absents.length > 0) {

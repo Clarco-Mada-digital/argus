@@ -21,7 +21,7 @@ const VERSION = '1.0.0';
 
 const BOOLEANS = [
   'help', 'version', 'verbose', 'quiet', 'ci', 'open', 'silent',
-  'update-baseline', 'no-baseline', 'include-tests', 'dry-run', 'yes', 'no-external', 'no-history',
+  'update-baseline', 'no-baseline', 'include-tests', 'dry-run', 'yes', 'no-external', 'no-history', 'mobile',
 ];
 
 const ALIASES = {
@@ -34,7 +34,7 @@ async function main() {
   const { options, positional } = parseArgs(argv, { booleans: BOOLEANS, aliases: ALIASES });
   // `argus ./site` vaut `argus scan ./site` : le premier argument n'est une
   // commande que s'il en porte le nom.
-  const COMMANDS = ['scan', 'serve', 'mcp', 'init', 'rules', 'baseline', 'sync', 'fix', 'crawl', 'history', 'help'];
+  const COMMANDS = ['scan', 'serve', 'mcp', 'perf', 'init', 'rules', 'baseline', 'sync', 'fix', 'crawl', 'history', 'help'];
   const first = positional[0];
   const isCommand = first !== undefined && COMMANDS.includes(first);
   const command = isCommand ? first : 'scan';
@@ -56,6 +56,8 @@ async function main() {
       return runServe(target, options);
     case 'mcp':
       return runMcp();
+    case 'perf':
+      return runPerf(target, options);
     case 'init':
       return runInit(target);
     case 'rules':
@@ -403,6 +405,82 @@ async function runSync(target, options) {
  * Serveur MCP : le dialogue occupe l'entree et la sortie standard.
  * Aucun affichage n'est possible ici sans corrompre le flux.
  */
+/**
+ * Mesure un chargement reel dans un navigateur.
+ *
+ * L'analyse statique dit ce qu'un fichier contient ; elle ne dit pas combien
+ * de temps le visiteur attend. Les deux se completent, et cette commande
+ * couvre ce que la lecture du code ne peut pas voir.
+ */
+async function runPerf(target, options) {
+  const url = target === '.' ? null : target;
+  if (!url || !/^https?:\/\//.test(url)) {
+    process.stderr.write('\n  Usage : argus perf <url>\n  Exemple : argus perf https://exemple.com --mobile\n\n');
+    return 2;
+  }
+
+  const { mesurerChargement, trouverNavigateur } = await import('../src/perf/navigateur.js');
+  const { evaluerChargement, SEUILS } = await import('../src/perf/regles.js');
+
+  if (!trouverNavigateur()) {
+    process.stderr.write(
+      `\n  ${color.yellow('!')} Aucun navigateur Chrome ou Chromium trouve.\n\n` +
+        '  Cette commande mesure un chargement reel : elle a besoin d\'un navigateur.\n' +
+        '  Installez Chrome ou Chromium, ou indiquez son chemin :\n\n' +
+        '    ARGUS_NAVIGATEUR=/chemin/vers/chrome argus perf <url>\n\n' +
+        '  Les autres commandes d\'Argus fonctionnent sans navigateur.\n\n',
+    );
+    return 3;
+  }
+
+  const mobile = Boolean(options.mobile);
+  process.stdout.write(
+    `\n  ${color.bold(color.cyan('ARGUS PERF'))} ${color.dim(mobile ? '· profil mobile' : '· profil bureau')}\n` +
+      `  ${color.dim(url)}\n\n  Chargement en cours…\n`,
+  );
+
+  let mesures;
+  try {
+    mesures = await mesurerChargement(url, {
+      mobile,
+      largeur: mobile ? 390 : 1366,
+      hauteur: mobile ? 844 : 768,
+      attente: Number(options.attente) || 4000,
+    });
+  } catch (erreur) {
+    process.stderr.write(`\n  ${color.red('✖')} ${erreur.message}\n\n`);
+    return 1;
+  }
+
+  const constats = evaluerChargement(mesures);
+  const note = (valeur, seuil) =>
+    valeur > seuil.mauvais ? color.red('mauvais') : valeur > seuil.bon ? color.yellow('a ameliorer') : color.green('bon');
+
+  const ms = (v) => `${(v / 1000).toFixed(2)} s`;
+  process.stdout.write(
+    `\n  ${color.dim('Titre')}            ${mesures.titre || '—'}\n` +
+      `  ${color.dim('Premier octet')}    ${ms(mesures.ttfb).padEnd(9)} ${note(mesures.ttfb, SEUILS.ttfb)}\n` +
+      `  ${color.dim('Premiere peinture')} ${ms(mesures.premierePeinture).padEnd(8)} ${note(mesures.premierePeinture, SEUILS.fcp)}\n` +
+      `  ${color.dim('Plus grand element')} ${ms(mesures.lcp).padEnd(7)} ${note(mesures.lcp, SEUILS.lcp)}\n` +
+      `  ${color.dim('Stabilite (CLS)')}  ${mesures.cls.toFixed(3).padEnd(9)} ${note(mesures.cls, SEUILS.cls)}\n` +
+      `  ${color.dim('Poids total')}      ${(mesures.octets / 1048576).toFixed(2)} Mo en ${mesures.requetes} requetes\n\n`,
+  );
+
+  if (constats.length === 0) {
+    process.stdout.write(`  ${color.green('✔')} Aucun probleme de chargement mesure.\n\n`);
+    return 0;
+  }
+
+  process.stdout.write(`  ${constats.length} constat(s) :\n\n`);
+  for (const constat of constats) {
+    const marque = constat.severity === 'high' ? color.red('▲') : constat.severity === 'medium' ? color.yellow('●') : color.dim('○');
+    process.stdout.write(`  ${marque} ${color.bold(constat.title)}\n    ${color.dim(constat.message)}\n    ${color.cyan('→')} ${constat.suggestion}\n\n`);
+  }
+
+  const bloquants = constats.filter((c) => c.severity === 'high').length;
+  return bloquants > 0 && options.failOn !== 'none' ? 1 : 0;
+}
+
 async function runMcp() {
   const { demarrerServeurMcp } = await import('../src/mcp/serveur.js');
   await demarrerServeurMcp();

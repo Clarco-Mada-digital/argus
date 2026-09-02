@@ -424,6 +424,34 @@ Sur mobile, la navigation **défile** au lieu de disparaître — masquer des en
 
 Une leçon annexe, coûteuse : pendant l'audit, le service worker servait la version précédente du CSS. J'ai « corrigé » deux fois un bogue qui l'était déjà. Le script désactive maintenant le cache et contourne le worker.
 
+## `argus perf` : mesurer le chargement réel
+
+L'analyse statique dit ce qu'un fichier **contient** ; elle ne dit pas combien de temps le visiteur **attend**. Une image de 800 Ko est un fait, mais son coût dépend de sa place dans la page et de ce qui la précède.
+
+```bash
+argus perf https://exemple.com --mobile
+```
+
+```
+  Titre             Boutique
+  Premier octet     0.09 s    bon
+  Premiere peinture 0.36 s    bon
+  Plus grand element 0.36 s   bon
+  Stabilite (CLS)   0.148     a ameliorer
+  Poids total       0.18 Mo en 5 requetes
+
+  ● La mise en page bouge pendant le chargement (0.148)
+    Concretement : le contenu saute sous les yeux du visiteur, et un bouton se
+    derobe au moment ou il le vise.
+    → Reservez la place avant le chargement : width et height sur chaque image…
+```
+
+Chrome est piloté directement par le protocole DevTools — **aucune dépendance ajoutée**, le même mécanisme que l'audit responsive du site. Cache vidé à chaque mesure : on mesure ce que voit un visiteur qui arrive pour la première fois, pas celui qui revient.
+
+Les seuils sont ceux des **Core Web Vitals**, repris tels quels. En inventer d'autres rendrait le résultat incomparable avec la Search Console de l'utilisateur — la seule mesure qui ait des conséquences pour lui.
+
+Sans navigateur installé, la commande l'explique et donne la variable à définir (`ARGUS_NAVIGATEUR`) ; **tout le reste d'Argus fonctionne sans**.
+
 ## Serveur MCP : donner Argus à un assistant
 
 Argus expose un serveur [MCP](https://modelcontextprotocol.io) sur l'entrée et la sortie standard. Un assistant peut alors **lire votre projet et proposer des corrections en connaissance de cause**, au lieu de deviner.

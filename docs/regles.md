@@ -473,6 +473,27 @@ sur le comportement lexical d'avant.
 
 ---
 
+## Chargement mesuré — `argus perf`
+
+Ces constats ne viennent pas de la lecture du code mais d'un chargement réel
+dans un navigateur. Ils complètent l'analyse statique : l'une dit qu'une image
+pèse 800 Ko, l'autre dit que la page reste blanche pendant trois secondes.
+
+| Règle | Gravité | Seuil |
+|---|---|---|
+| `PERF-LCP-LENT` | moyenne > 2,5 s · haute > 4 s | Plus grand élément affiché |
+| `PERF-CLS-INSTABLE` | moyenne > 0,1 · haute > 0,25 | Décalage cumulé de mise en page |
+| `PERF-TTFB-LENT` | basse > 0,8 s · moyenne > 1,8 s | Premier octet reçu |
+| `PERF-POIDS-TOTAL` | basse > 2 Mo · moyenne > 5 Mo | Poids téléchargé |
+| `PERF-RESSOURCE-LOURDE` | basse > 200 Ko · moyenne > 500 Ko | Une seule ressource |
+| `PERF-REQUETES-NOMBREUSES` | basse > 80 | Nombre de requêtes |
+
+Les seuils sont ceux des Core Web Vitals, repris sans modification pour rester
+comparables à la Search Console. Une valeur à zéro — page sans élément
+mesurable — n'est pas signalée : l'annoncer comme excellente serait faux.
+
+---
+
 ## Domaine de validité des règles
 
 Certaines règles n'ont de sens que sur le web. Elles sont déclarées dans
