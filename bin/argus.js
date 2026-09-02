@@ -21,7 +21,7 @@ const VERSION = '1.0.0';
 
 const BOOLEANS = [
   'help', 'version', 'verbose', 'quiet', 'ci', 'open', 'silent',
-  'update-baseline', 'no-baseline', 'include-tests', 'dry-run', 'yes', 'no-external', 'no-history', 'mobile',
+  'update-baseline', 'no-baseline', 'include-tests', 'dry-run', 'yes', 'no-external', 'no-history', 'mobile', 'tout', 'branche',
 ];
 
 const ALIASES = {
@@ -34,7 +34,7 @@ async function main() {
   const { options, positional } = parseArgs(argv, { booleans: BOOLEANS, aliases: ALIASES });
   // `argus ./site` vaut `argus scan ./site` : le premier argument n'est une
   // commande que s'il en porte le nom.
-  const COMMANDS = ['scan', 'serve', 'mcp', 'perf', 'init', 'rules', 'baseline', 'sync', 'fix', 'crawl', 'history', 'help'];
+  const COMMANDS = ['scan', 'serve', 'mcp', 'perf', 'fuites', 'init', 'rules', 'baseline', 'sync', 'fix', 'crawl', 'history', 'help'];
   const first = positional[0];
   const isCommand = first !== undefined && COMMANDS.includes(first);
   const command = isCommand ? first : 'scan';
@@ -58,6 +58,8 @@ async function main() {
       return runMcp();
     case 'perf':
       return runPerf(target, options);
+    case 'fuites':
+      return runFuites(target, options);
     case 'init':
       return runInit(target);
     case 'rules':
@@ -479,6 +481,105 @@ async function runPerf(target, options) {
 
   const bloquants = constats.filter((c) => c.severity === 'high').length;
   return bloquants > 0 && options.failOn !== 'none' ? 1 : 0;
+}
+
+/**
+ * Cherche les secrets ayant vecu dans l'historique Git.
+ *
+ * Le scan ordinaire ne lit que l'arbre de travail : une clef sortie du code
+ * dans un commit ulterieur en disparait, alors qu'elle reste integralement
+ * lisible pour quiconque clone le depot.
+ */
+async function runFuites(target, options) {
+  const racine = path.resolve(target === '.' ? process.cwd() : target);
+  const { chercherLesFuites, depuisQuand, ouRevoquer } = await import('../src/core/fuites.js');
+
+  process.stdout.write(
+    `\n  ${color.bold(color.cyan('ARGUS FUITES'))}\n  ${color.dim(racine)}\n\n  Lecture de l'historique…\n`,
+  );
+
+  let resultat;
+  try {
+    resultat = await chercherLesFuites(racine, {
+      maxCommits: Number(options.maxCommits) || 2000,
+      tousLesRefs: !options.branche,
+    });
+  } catch (erreur) {
+    process.stderr.write(`\n  ${color.red('✖')} ${erreur.message}\n\n`);
+    return erreur.genre === 'git' ? 2 : 1;
+  }
+
+  const { fuites, reelles, donneesDeTest, commitsAnalyses, tronque } = resultat;
+  process.stdout.write(`  ${commitsAnalyses} commits analyses.\n\n`);
+
+  // `--tout` doit passer avant ce retour : sinon la seule facon de consulter
+  // les valeurs ecartees serait qu'une vraie fuite existe par ailleurs.
+  if (reelles.length === 0 && !(options.tout && fuites.length > 0)) {
+    process.stdout.write(
+      `  ${color.green('✔')} Aucun secret trouve dans l'historique.\n\n` +
+        (donneesDeTest > 0
+          ? color.dim(`  ${donneesDeTest} valeur(s) reconnue(s) uniquement dans des fichiers de test, ecartee(s).\n  Utilisez --tout pour les afficher.\n\n`)
+          : '') +
+        (tronque
+          ? color.dim(`  Analyse limitee aux ${commitsAnalyses} derniers commits : utilisez --max-commits pour aller plus loin.\n\n`)
+          : ''),
+    );
+    return 0;
+  }
+
+  process.stdout.write(
+    reelles.length > 0
+      ? `  ${color.red(color.bold(`${reelles.length} secret(s) ont vecu dans ce depot.`))}\n\n` +
+        color.dim('  Retirer une clef du code ne la retire pas de l\'historique. Elle reste\n') +
+        color.dim('  lisible par quiconque clone le depot, aujourd\'hui ou dans cinq ans.\n\n')
+      : `  ${color.green('✔')} Aucune vraie fuite. Valeurs de test affichees a votre demande :\n\n`,
+  );
+
+  const aMontrer = options.tout ? fuites : reelles;
+  for (const fuite of aMontrer) {
+    const marque = fuite.donneeDeTest
+      ? color.dim('·')
+      : fuite.severite === 'critical'
+        ? color.red('■')
+        : color.yellow('▲');
+    const etat = fuite.donneeDeTest
+      ? color.dim('chemin de test — probablement une donnee de test')
+      : fuite.encorePresente
+        ? color.red('encore dans le code')
+        : color.dim('retiree du code, toujours dans l\'historique');
+
+    process.stdout.write(
+      `  ${marque} ${color.bold(fuite.libelle)}  ${color.dim(fuite.valeur)}\n` +
+        `      ${etat}\n` +
+        `      introduite ${depuisQuand(fuite.premierCommit.date)} · ${color.dim(fuite.premierCommit.hash.slice(0, 8))} « ${fuite.premierCommit.sujet} »\n` +
+        (fuite.fichiers.length > 0 ? `      ${color.dim(fuite.fichiers.slice(0, 3).join(', '))}\n` : ''),
+    );
+
+    const { service, adresse } = ouRevoquer(fuite.genre);
+    if (service) {
+      process.stdout.write(`      ${color.cyan('→')} Revoquez sur ${service}${adresse ? ` : ${adresse}` : ''}\n`);
+    }
+    process.stdout.write('\n');
+  }
+
+  process.stdout.write(
+    `  ${color.bold('Dans cet ordre :')}\n` +
+      `  1. ${color.bold('Revoquez et remplacez chaque clef.')} C'est la seule action qui ferme\n` +
+      '     vraiment la porte — on ne sait pas qui a deja clone le depot.\n' +
+      '  2. Verifiez les journaux d\'acces du service sur la periode concernee.\n' +
+      '  3. Ensuite seulement, reecrivez l\'historique si vous y tenez\n' +
+      `     ${color.dim('(git filter-repo, ou BFG) — cela reecrit tous les commits et')}\n` +
+      `     ${color.dim('oblige chaque contributeur a recloner.')}\n\n` +
+      (donneesDeTest > 0 && !options.tout
+        ? color.dim(`  ${donneesDeTest} valeur(s) trouvee(s) uniquement dans des fichiers de test, ecartee(s) — --tout pour les voir.\n\n`)
+        : '') +
+      (tronque
+        ? color.dim(`  Analyse limitee aux ${commitsAnalyses} derniers commits : --max-commits pour aller plus loin.\n\n`)
+        : ''),
+  );
+
+  const critiques = reelles.filter((f) => f.severite === 'critical').length;
+  return critiques > 0 ? 1 : 0;
 }
 
 async function runMcp() {

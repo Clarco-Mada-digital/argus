@@ -424,6 +424,34 @@ Sur mobile, la navigation **défile** au lieu de disparaître — masquer des en
 
 Une leçon annexe, coûteuse : pendant l'audit, le service worker servait la version précédente du CSS. J'ai « corrigé » deux fois un bogue qui l'était déjà. Le script désactive maintenant le cache et contourne le worker.
 
+## `argus fuites` : les secrets que l'historique garde
+
+Argus dit, pour chaque secret trouvé dans le code : *« elle doit être considérée comme compromise dès lors qu'elle a été versionnée »*. Il était pourtant incapable de dire **lesquelles** l'avaient été — il ne lisait que l'arbre de travail.
+
+Or le geste le plus courant face à une clef en dur est de la remplacer par une variable d'environnement au commit suivant. Le fichier redevient propre, l'analyse redevient verte, et la clef reste intégralement lisible dans `git log -p` pour quiconque clone le dépôt. **La correction donne un sentiment de sécurité qui est l'inverse de la réalité.**
+
+```
+$ argus scan .          →  0 secret dans le code
+$ argus fuites .        →  3 secrets ont vecu dans ce depot
+```
+
+```
+  ■ Clef Stripe  sk_l************EFGH
+      retiree du code, toujours dans l'historique
+      introduite il y a 2 ans · fdecae30 « configuration de production »
+      → Revoquez sur Stripe : https://dashboard.stripe.com/apikeys
+```
+
+Le résultat n'est pas « il y a un secret » mais **« cette clef a vécu du commit A à aujourd'hui, la voici, révoquez-la là »**. Chaque type de secret pointe vers sa page de révocation — un test vérifie qu'aucun genre détectable n'est laissé sans conseil, parce que constater une fuite sans dire où la fermer laisse le travail à moitié fait, et c'est la moitié difficile.
+
+L'ordre des actions est explicite : **révoquer d'abord**. Réécrire l'historique est possible, mais on ne sait pas qui a déjà cloné, ni ce qu'un miroir en a gardé.
+
+### Les données de test rangées à part
+
+Une suite qui vérifie la détection de secrets *doit* en contenir : c'est son entrée. Sur le dépôt d'Argus lui-même, 11 valeurs sont reconnues — toutes dans des fixtures. Elles sont écartées par défaut, comptées et annoncées, consultables avec `--tout`. Elles ne sont pas supprimées : une vraie clef finit parfois dans un test.
+
+Lecture en flux — `git log -p` sur un dépôt sérieux produit des centaines de méga-octets — et déduplication par empreinte : une même clef dans cinquante commits reste **une seule** clef à révoquer.
+
 ## `argus perf` : mesurer le chargement réel
 
 L'analyse statique dit ce qu'un fichier **contient** ; elle ne dit pas combien de temps le visiteur **attend**. Une image de 800 Ko est un fait, mais son coût dépend de sa place dans la page et de ce qui la précède.
