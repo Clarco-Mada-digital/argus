@@ -57,6 +57,11 @@ export const DEFAULT_CONFIG = {
   maxFileSize: 2 * 1024 * 1024,
   /** Nombre max de fichiers analyses (garde-fou). */
   maxFiles: 20000,
+  /**
+   * Plateformes visees, si la deduction se trompe : ['web'], ['desktop'],
+   * ['mobile'], ou une combinaison. Vide = Argus deduit.
+   */
+  platforms: [],
   /** Regles desactivees, par identifiant ou prefixe (ex: "SEC-" ). */
   disabledRules: [],
   /** Surcharges de severite : { "SEO-001": "low" }. */

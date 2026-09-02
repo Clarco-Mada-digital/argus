@@ -425,6 +425,17 @@ function estCharguParLeNavigateur(file, context) {
         )) {
           ajouter(fichier, m[1]);
         }
+        // Le script de preload d'Electron est designe par un chemin construit
+        // a l'execution — `preload: join(__dirname, 'preload.js')`. Aucun
+        // import ne le mentionne, et il passait donc pour du code mort alors
+        // qu'il est le pont entre la fenetre et le systeme.
+        for (const m of fichier.content.matchAll(
+          // La virgule est autorisee : le chemin est presque toujours
+          // construit par `join(__dirname, 'preload.js')`.
+          /\bpreload\s*:[^\n]{0,80}?["']([^"']+\.[cm]?[jt]s)["']/g,
+        )) {
+          ajouter(fichier, m[1]);
+        }
         // `new Worker('./x.js')` releve exactement du meme mecanisme.
         for (const m of fichier.content.matchAll(
           /new\s+(?:Shared)?Worker\s*\(\s*["']([^"']+)["']/g,

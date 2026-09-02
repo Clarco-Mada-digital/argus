@@ -66,6 +66,16 @@ export function renderReport(result, { verbose = false, maxPerRule = 3, maxFindi
  * de voir d'un coup d'oeil que `apps/mobile` est bien analysee comme une
  * application mobile et non comme un site.
  */
+/**
+ * La preuve du framework le plus specifique detecte.
+ *
+ * On ne montre que celle-la : lister toutes les preuves noierait la seule qui
+ * compte, celle qui a decide de la plateforme et donc des regles appliquees.
+ */
+function preuvePrincipale(project) {
+  return project.preuves?.[project.identite] ?? null;
+}
+
 function renderSousProjets(project) {
   const sous = project.sousProjets || [];
   if (sous.length === 0) return [];
@@ -93,7 +103,22 @@ function renderHeader(result) {
 
   const plateformes = { web: 'web', mobile: 'mobile', desktop: 'bureau', inconnu: null };
   const cibles = (project.platforms || []).map((p) => plateformes[p]).filter(Boolean);
-  const identite = [project.description, cibles.join(' et ')].filter(Boolean).join(color.dim(' · '));
+
+  // La preuve qui a fait conclure. Sans elle, une deduction fausse est
+  // invisible : l'utilisateur voit « site statique » sur son application de
+  // bureau sans savoir quoi corriger, ni meme qu'il y a quelque chose a
+  // corriger.
+  const justification = project.plateformeImposee
+    ? 'plateforme imposee par la configuration'
+    : preuvePrincipale(project) && `d'apres ${preuvePrincipale(project)}`;
+
+  const identite = [
+    project.description,
+    cibles.join(' et '),
+    justification ? color.dim(justification) : null,
+  ]
+    .filter(Boolean)
+    .join(color.dim(' · '));
   const lines = [
     '',
     `${color.bold(color.cyan('  ARGUS'))} ${color.dim('· analyse de projet')}`,

@@ -331,3 +331,63 @@ test('web : des pages HTML nues restent un site a referencer', async () => {
 
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test('plateforme : la deduction dit sur quoi elle se fonde', async () => {
+  const rapport = await analyser('expo');
+
+  assert.equal(rapport.project.identite, 'expo');
+  assert.match(
+    rapport.project.preuves.expo,
+    /expo/,
+    'la preuve doit nommer ce qui a decide, pas rester implicite',
+  );
+  // La preuve affichee est celle du framework qui a donne son nom au projet,
+  // pas la premiere venue : « React Native (Expo) d'apres react » serait juste
+  // assez faux pour induire en erreur.
+  assert.notEqual(rapport.project.preuves[rapport.project.identite], rapport.project.preuves.react);
+});
+
+test('plateforme : la configuration l\'emporte sur la deduction', async () => {
+  const fs = await import('node:fs');
+  const os = await import('node:os');
+  const pathMod = await import('node:path');
+
+  // Une interface HTML embarquee dans une application native : rien ne permet
+  // a Argus de trancher, et il conclut « site web » — donc SEO partout.
+  const dir = fs.mkdtempSync(pathMod.join(os.tmpdir(), 'argus-plat-'));
+  fs.mkdirSync(pathMod.join(dir, 'ui'));
+  fs.writeFileSync(
+    pathMod.join(dir, 'ui/index.html'),
+    '<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Outil</title></head><body><h1>Tableau</h1></body></html>',
+  );
+
+  const deduit = await scan(dir, { noHistory: true });
+  assert.deepEqual(deduit.project.platforms, ['web']);
+  assert.ok(deduit.findings.some((f) => f.ruleId.startsWith('SEO-')));
+
+  // L'utilisateur tranche.
+  fs.writeFileSync(pathMod.join(dir, 'argus.config.json'), JSON.stringify({ platforms: ['desktop'] }));
+  const impose = await scan(dir, { noHistory: true });
+
+  assert.deepEqual(impose.project.platforms, ['desktop']);
+  assert.ok(impose.project.plateformeImposee);
+  assert.deepEqual(impose.findings.filter((f) => f.ruleId.startsWith('SEO-')), []);
+
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('plateforme : une valeur invalide ne casse pas la deduction', async () => {
+  const fs = await import('node:fs');
+  const os = await import('node:os');
+  const pathMod = await import('node:path');
+
+  const dir = fs.mkdtempSync(pathMod.join(os.tmpdir(), 'argus-plat2-'));
+  fs.writeFileSync(pathMod.join(dir, 'index.html'), '<!doctype html><html lang="fr"><head><title>x</title></head><body><h1>y</h1></body></html>');
+  fs.writeFileSync(pathMod.join(dir, 'argus.config.json'), JSON.stringify({ platforms: ['bureautique', 42] }));
+
+  const rapport = await scan(dir, { noHistory: true });
+  assert.deepEqual(rapport.project.platforms, ['web'], 'on retombe sur la deduction');
+  assert.ok(!rapport.project.plateformeImposee);
+
+  fs.rmSync(dir, { recursive: true, force: true });
+});

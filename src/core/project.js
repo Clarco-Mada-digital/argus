@@ -19,8 +19,10 @@ export class ProjectContext {
     this.byExtension = groupBy(files, (f) => f.ext);
 
     this.manifests = this.#readManifests();
-    this.frameworks = detectFrameworks(this);
-    this.platforms = detectPlatforms(this.frameworks, aDesPagesHtml(this));
+    /** Ce qui a fait conclure a chaque framework : `id -> preuve`. */
+    this.preuves = new Map();
+    this.frameworks = detectFrameworks(this, this.preuves);
+    this.platforms = plateformesRetenues(this, detectPlatforms(this.frameworks, aDesPagesHtml(this)));
     this.stack = summarizeStack(this);
 
     this.#construireSousProjets();
@@ -99,7 +101,7 @@ export class ProjectContext {
       for (const id of perimetre.frameworks) frameworks.add(id);
     }
     this.frameworks = [...frameworks];
-    this.platforms = detectPlatforms(this.frameworks, aDesPagesHtml(this));
+    this.platforms = plateformesRetenues(this, detectPlatforms(this.frameworks, aDesPagesHtml(this)));
   }
 
   /**
@@ -248,7 +250,15 @@ function groupBy(items, keyFn) {
  * Detection de frameworks par manifeste + presence de fichiers signature.
  * Volontairement large : elle pilote l'activation des regles specialisees.
  */
-function detectFrameworks(context) {
+/**
+ * Detection de frameworks, avec la preuve qui a fait conclure.
+ *
+ * Sans trace, une deduction fausse est invisible donc incorrigible : un projet
+ * Electron classe « site statique » recevait toute l'analyse d'un site sans
+ * que rien n'indique pourquoi. On note desormais *ce qui* a decide, et le
+ * rapport l'affiche.
+ */
+function detectFrameworks(context, preuves = new Map()) {
   const found = new Set();
   const pkg = context.manifests['package.json']?.data || {};
   const npmDeps = {
@@ -257,6 +267,12 @@ function detectFrameworks(context) {
   };
   const hasDep = (name) => Object.hasOwn(npmDeps, name);
   const hasFile = (pattern) => context.files.some((f) => pattern.test(f.relativePath));
+
+  /** Enregistre la premiere preuve trouvee : c'est la plus directe. */
+  const noter = (id, preuve) => {
+    found.add(id);
+    if (!preuves.has(id)) preuves.set(id, preuve);
+  };
 
   const npmMap = {
     next: 'nextjs',
@@ -305,34 +321,38 @@ function detectFrameworks(context) {
     vite: 'vite',
     webpack: 'webpack',
   };
-  for (const [dep, id] of Object.entries(npmMap)) if (hasDep(dep)) found.add(id);
+  for (const [dep, id] of Object.entries(npmMap)) {
+    if (hasDep(dep)) noter(id, `dependance « ${dep} »`);
+  }
 
-  if (context.manifests['package.json']) found.add('node');
-  if (context.manifests['pubspec.yaml']) found.add('flutter');
+  if (context.manifests['package.json']) noter('node', 'package.json');
+  if (context.manifests['pubspec.yaml']) noter('flutter', 'pubspec.yaml');
   if (context.manifests['composer.json']) {
     found.add('php');
     const composer = context.manifests['composer.json'].data || {};
     const phpDeps = { ...(composer.require || {}), ...(composer['require-dev'] || {}) };
-    if (Object.keys(phpDeps).some((d) => d.startsWith('laravel/'))) found.add('laravel');
-    if (Object.keys(phpDeps).some((d) => d.startsWith('symfony/'))) found.add('symfony');
+    if (Object.keys(phpDeps).some((d) => d.startsWith('laravel/'))) noter('laravel', 'composer.json');
+    if (Object.keys(phpDeps).some((d) => d.startsWith('symfony/'))) noter('symfony', 'composer.json');
   }
-  if (context.manifests['go.mod']) found.add('go');
-  if (context.manifests['Cargo.toml']) found.add('rust');
+  if (context.manifests['go.mod']) noter('go', 'go.mod');
+  if (context.manifests['Cargo.toml']) noter('rust', 'Cargo.toml');
   if (context.manifests['Gemfile']) {
     found.add('ruby');
-    if (/rails/.test(context.manifests['Gemfile'].data || '')) found.add('rails');
+    if (/rails/.test(context.manifests['Gemfile'].data || '')) noter('rails', 'Gemfile');
   }
   if (context.manifests['pom.xml'] || context.manifests['build.gradle']) {
     found.add('jvm');
     const build = `${context.manifests['pom.xml']?.data || ''}${context.manifests['build.gradle']?.data || ''}`;
-    if (/spring-boot|springframework/.test(build)) found.add('spring');
+    if (/spring-boot|springframework/.test(build)) noter('spring', 'pom.xml ou build.gradle');
   }
 
   const pythonSource = context.byLanguage.get('python') || [];
   const pythonHead = pythonSource.slice(0, 300).map((f) => f.content).join('\n');
-  if (/from\s+django|import\s+django/.test(pythonHead) || hasFile(/(^|\/)manage\.py$/)) found.add('django');
-  if (/from\s+fastapi|FastAPI\(/.test(pythonHead)) found.add('fastapi');
-  if (/from\s+flask|Flask\(/i.test(pythonHead)) found.add('flask');
+  if (/from\s+django|import\s+django/.test(pythonHead) || hasFile(/(^|\/)manage\.py$/)) {
+    noter('django', hasFile(/(^|\/)manage\.py$/) ? 'manage.py' : 'import django');
+  }
+  if (/from\s+fastapi|FastAPI\(/.test(pythonHead)) noter('fastapi', 'import fastapi');
+  if (/from\s+flask|Flask\(/i.test(pythonHead)) noter('flask', 'import flask');
 
   // Un script utilitaire ne fait pas un projet Python.
   //
@@ -355,7 +375,9 @@ function detectFrameworks(context) {
 
   // Le manifeste natif est parfois le seul indice : un projet Tauri se
   // reconnait a son `src-tauri`, une app Android a son AndroidManifest.
-  if (hasFile(/(^|\/)src-tauri\//) || hasFile(/(^|\/)tauri\.conf\.json$/)) found.add('tauri');
+  if (hasFile(/(^|\/)src-tauri\//) || hasFile(/(^|\/)tauri\.conf\.json$/)) {
+    noter('tauri', 'dossier src-tauri/ ou tauri.conf.json');
+  }
 
   // Dernier recours : ce que le code importe reellement.
   //
@@ -366,24 +388,45 @@ function detectFrameworks(context) {
   // bureau etait classee « site statique » et recevait toute l'analyse SEO.
   for (const [motif, id] of SIGNATURES_DANS_LE_CODE) {
     if (found.has(id)) continue;
-    if (motif.test(scriptsDuManifeste(pkg))) { found.add(id); continue; }
-    if (motif.test(entetesJavaScript(context))) found.add(id);
+    if (motif.test(scriptsDuManifeste(pkg))) { noter(id, 'script npm du manifeste'); continue; }
+    if (motif.test(entetesJavaScript(context))) noter(id, 'import dans le code source');
   }
   // Fichiers de signature : ils suffisent a identifier une application de
   // bureau meme quand le manifeste ne dit rien d'utile.
   if (hasFile(/(^|\/)(electron-builder\.(yml|yaml|json|js)|forge\.config\.[cm]?js|electron\.vite\.config\.[cm]?[jt]s)$/)) {
-    found.add('electron');
+    noter('electron', 'fichier de configuration Electron');
   }
-  if (hasFile(/(^|\/)AndroidManifest\.xml$/)) found.add('android');
-  if (hasFile(/(^|\/)Info\.plist$/) || hasFile(/\.xcodeproj\//)) found.add('ios');
-  if (hasFile(/(^|\/)capacitor\.config\.(ts|js|json)$/)) found.add('capacitor');
+  if (hasFile(/(^|\/)AndroidManifest\.xml$/)) noter('android', 'AndroidManifest.xml');
+  if (hasFile(/(^|\/)Info\.plist$/) || hasFile(/\.xcodeproj\//)) noter('ios', 'Info.plist ou projet Xcode');
+  if (hasFile(/(^|\/)capacitor\.config\.(ts|js|json)$/)) noter('capacitor', 'capacitor.config');
 
   if (hasFile(/(^|\/)(pages|app)\/.*\.(jsx?|tsx?)$/) && found.has('nextjs')) found.add('nextjs-router');
-  if (hasFile(/(^|\/)index\.html$/)) found.add('static-site');
+  if (hasFile(/(^|\/)index\.html$/)) noter('static-site', 'index.html');
   if (hasFile(/(^|\/)Dockerfile/i)) found.add('docker');
   if (hasFile(/\.github\/workflows\//)) found.add('github-actions');
 
   return [...found];
+}
+
+/**
+ * La plateforme imposee par la configuration l'emporte sur la deduction.
+ *
+ * Aucune heuristique ne sera juste partout, et se tromper de plateforme change
+ * toute l'analyse — pas une regle, une categorie entiere. L'utilisateur doit
+ * pouvoir trancher. La deduction reste affichee avec sa preuve, pour qu'il
+ * sache *pourquoi* il doit la corriger.
+ */
+const PLATEFORMES_VALIDES = new Set(['web', 'mobile', 'desktop']);
+
+function plateformesRetenues(perimetre, deduites) {
+  const imposees = perimetre.config?.platforms;
+  if (!Array.isArray(imposees) || imposees.length === 0) return deduites;
+
+  const retenues = imposees.filter((p) => PLATEFORMES_VALIDES.has(p));
+  if (retenues.length === 0) return deduites;
+
+  perimetre.plateformeImposee = true;
+  return retenues;
 }
 
 /** Le perimetre contient-il au moins une page HTML servable ? */
@@ -553,6 +596,8 @@ const IDENTITES = [
 ];
 
 function describeProject(context) {
+  context.identite = IDENTITES.find((c) => context.frameworks.includes(c.id))?.id ?? null;
+
   if (context.estMonorepo && context.sousProjets?.length) {
     const noms = context.sousProjets.map((p) => p.description);
     const distincts = [...new Set(noms)];

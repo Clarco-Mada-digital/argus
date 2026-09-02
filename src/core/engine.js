@@ -4,6 +4,7 @@ import { walkProject } from './walker.js';
 import { ProjectContext } from './project.js';
 import { buildActionPlan, buildScores } from './scoring.js';
 import { atLeast } from './severity.js';
+import { constatDansSonDomaine } from './domaines.js';
 import { loadBaseline } from './config.js';
 import { analyzers as builtinAnalyzers } from '../analyzers/index.js';
 import { changedFiles, describeRef } from './git.js';
@@ -109,6 +110,9 @@ export class Engine {
         frameworks: context.frameworks,
         platforms: context.platforms,
         description: context.description,
+        identite: context.identite ?? null,
+        plateformeImposee: Boolean(context.plateformeImposee),
+        preuves: Object.fromEntries(context.preuves || []),
         monorepo: Boolean(context.estMonorepo),
         sousProjets: (context.sousProjets || []).map((p) => ({
           chemin: p.chemin,
@@ -147,6 +151,17 @@ export class Engine {
     return true;
   }
 
+  /**
+   * Le constat releve-t-il d'une regle valide pour la plateforme de son
+   * fichier ? La plateforme est celle du *perimetre* du fichier : dans un
+   * monorepo, `apps/web` garde le SEO que `apps/mobile` n'a pas.
+   */
+  #dansSonDomaine(finding, context) {
+    const fichier = finding.file ? context.byPath?.get(finding.file) : null;
+    const perimetre = fichier && context.perimetreDe ? context.perimetreDe(fichier) : context;
+    return constatDansSonDomaine(finding.ruleId, perimetre.platforms);
+  }
+
   #filter(findings, baseline, context) {
     const kept = [];
     const suppressed = [];
@@ -166,6 +181,14 @@ export class Engine {
       // perimetre demande : `--only seo` ne doit pas laisser passer un
       // resultat de securite.
       if (!this.config.categories.includes(finding.category)) {
+        suppressed.push(finding);
+        continue;
+      }
+      // Une regle appliquee hors de son domaine ne dit rien de vrai. La
+      // verification est centrale et non dispersee dans les analyseurs :
+      // sinon chaque nouvelle regle recommence l'oubli.
+      if (!this.#dansSonDomaine(finding, context)) {
+        finding.horsDomaine = true;
         suppressed.push(finding);
         continue;
       }

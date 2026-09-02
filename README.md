@@ -216,6 +216,47 @@ Langages      typescript 65%  python 19%  javascript 15%
 Detecte       react, react-native, expo, node
 ```
 
+#### La déduction dit sur quoi elle se fonde — et se corrige
+
+Une déduction invisible est incorrigible. Argus affiche maintenant ce qui l'a fait conclure :
+
+```
+Projet        Electron · bureau · d'après import dans le code source
+Projet        Django · web · d'après manage.py
+Projet        React Native (Expo) · mobile · d'après dépendance « expo »
+```
+
+Et quand il se trompe — aucune heuristique ne sera juste partout — on tranche soi-même dans `argus.config.json` :
+
+```json
+{ "platforms": ["desktop"] }
+```
+
+Sur une interface HTML embarquée dans une application native, cas où rien ne permet à Argus de décider : **11 constats SEO deviennent 0**. La ligne indique alors « plateforme imposée par la configuration ».
+
+#### Chaque règle déclare son domaine de validité
+
+Le SEO n'était pas un cas isolé : Argus appliquait plusieurs règles hors de leur domaine. Corriger cas par cas aurait produit une dizaine de `if (cible('web'))` dispersés dans les analyseurs — invisibles, jamais relus, et oubliés à la règle suivante. La contrainte est donc déclarée dans **un seul fichier**, `src/core/domaines.js`, et appliquée centralement par le moteur.
+
+| Règle restreinte au web | Raison |
+|---|---|
+| `SEO-*` | Aucun robot n'explore une application locale |
+| `SEC-MISSING-HEADERS` | Des en-têtes HTTP supposent un serveur HTTP |
+| `PERF-NO-PRECONNECT`, `PERF-BLOCKING-SCRIPT`, `PERF-TOO-MANY-CSS`, `PERF-FONT-*` | Ces règles optimisent un **téléchargement** ; les fichiers d'une application installée sont lus depuis le disque |
+| `ROUTE-UPPERCASE`, `ROUTE-UNDERSCORE`, `ROUTE-TOO-DEEP`, `ROUTE-NO-404`, `ROUTE-ORPHAN` | Un logiciel de bureau n'a pas d'URL à partager |
+| `A11Y-NO-SKIP-LINK`, `UX-NO-AUTOCOMPLETE` | Conventions propres au navigateur |
+| `DESIGN-FIXED-WIDTH`, `DESIGN-*-BREAKPOINTS` | Un panneau de largeur fixe est la norme dans une interface de bureau |
+
+**L'absence d'entrée signifie « valide partout »** : on ne restreint que ce dont on peut justifier la restriction, parce qu'une règle muette à tort coûte plus cher qu'une règle bavarde à tort — la seconde se voit, la première non.
+
+L'accessibilité, le contraste, les tokens de design, les injections et le code mort restent vérifiés partout. Restreindre le domaine ne doit pas servir de prétexte à ne plus rien vérifier.
+
+#### Une règle que l'audit a fait apparaître
+
+`APP-RESSOURCE-DISTANTE` : une application installée qui charge un script ou une feuille de style depuis un CDN.
+
+Sur une page web, c'est un arbitrage courant. Dans un logiciel installé, c'est deux choses que personne ne choisit vraiment — l'application cesse de fonctionner hors ligne, ce qui ne se voit qu'une fois chez l'utilisateur ; et le domaine distant obtient un droit d'exécution dans une fenêtre qui dispose d'API système. **Une page web compromise par son CDN perd sa session ; une application de bureau compromise par son CDN perd la machine.**
+
 #### Une application de bureau non plus
 
 Signalé sur un projet Electron réel, avec deux symptômes distincts et une même racine.

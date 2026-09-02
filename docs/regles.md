@@ -473,6 +473,39 @@ sur le comportement lexical d'avant.
 
 ---
 
+## Domaine de validité des règles
+
+Certaines règles n'ont de sens que sur le web. Elles sont déclarées dans
+`src/core/domaines.js` et filtrées centralement, par plateforme du périmètre
+du fichier — un monorepo web + mobile garde donc le SEO pour sa partie web.
+
+| Famille restreinte au web | Raison |
+|---|---|
+| `SEO-*` | Aucun robot n'explore une application locale |
+| `SEC-MISSING-HEADERS` | Des en-têtes HTTP supposent un serveur HTTP |
+| `PERF-NO-PRECONNECT`, `PERF-BLOCKING-SCRIPT`, `PERF-TOO-MANY-CSS`, `PERF-FONT-FORMAT`, `PERF-FONT-DISPLAY` | Optimisent un téléchargement réseau |
+| `ROUTE-UPPERCASE`, `ROUTE-UNDERSCORE`, `ROUTE-TOO-DEEP`, `ROUTE-NO-404`, `ROUTE-ORPHAN` | Pas d'URL publique dans un logiciel installé |
+| `A11Y-NO-SKIP-LINK`, `UX-NO-AUTOCOMPLETE` | Conventions propres au navigateur |
+| `DESIGN-FIXED-WIDTH`, `DESIGN-NO-BREAKPOINTS`, `DESIGN-TOO-MANY-BREAKPOINTS` | Un panneau fixe est la norme en interface de bureau |
+
+L'absence d'entrée signifie « valide partout ». Pour trancher soi-même :
+`{ "platforms": ["desktop"] }` dans `argus.config.json`.
+
+---
+
+## Applications installées — `APP-*`
+
+| Règle | Gravité | Détecte |
+|---|---|---|
+| `APP-RESSOURCE-DISTANTE` | haute *(script)* · moyenne *(style)* | Script ou feuille de style chargés depuis un domaine distant |
+
+Transverse à Electron, Tauri, Capacitor et les WebView mobiles : partout où du
+HTML local s'exécute avec des privilèges natifs. L'application cesse de
+fonctionner hors ligne, et le domaine distant obtient un droit d'exécution
+dans une fenêtre qui dispose d'API système.
+
+---
+
 ## Diagnostic interne — `ARGUS-*`
 
 | Règle | Gravité | Détecte |
