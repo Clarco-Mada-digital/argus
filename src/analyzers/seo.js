@@ -21,13 +21,24 @@ export default {
 
     context.shared.set('seoPages', pages.length);
 
-    for (const page of pages) {
+    // Le SEO n'existe que sur le web, et la verification doit se faire *par
+    // page*. Seules les regles de niveau projet consultaient la plateforme :
+    // les regles par page tournaient sur n'importe quel fichier HTML, si bien
+    // qu'une application Electron se voyait reprocher l'absence de balise
+    // canonique et de donnees structurees sur le HTML de son interface — une
+    // page qu'aucun robot ne verra jamais.
+    const indexables = pages.filter((page) => {
+      const perimetre = context.perimetreDe ? context.perimetreDe(page.file) : context;
+      return perimetre.cible('web');
+    });
+
+    for (const page of indexables) {
       analyzePage(page, context, options, report);
     }
 
     analyzeProjectFiles(context, report);
-    analyzeSpa(context, pages, report);
-    analyzeMetaDuplication(pages, report);
+    analyzeSpa(context, indexables, report);
+    analyzeMetaDuplication(indexables, report);
   },
 };
 

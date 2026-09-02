@@ -216,6 +216,25 @@ Langages      typescript 65%  python 19%  javascript 15%
 Detecte       react, react-native, expo, node
 ```
 
+#### Une application de bureau non plus
+
+Signalé sur un projet Electron réel, avec deux symptômes distincts et une même racine.
+
+**Le projet n'était pas reconnu comme Electron.** Beaucoup de projets ne déclarent pas le paquet — il est installé globalement, hérité d'un espace de travail parent, ou absent d'un `package.json` écrit à la main. Le manifeste se taisait, mais `require('electron')` ne ment pas. Argus reconnaît maintenant tout l'écosystème (`electron-vite`, `electron-builder`, `electron-forge`, `@electron-toolkit/*`), les fichiers de signature (`electron-builder.yml`, `forge.config.js`), les scripts npm, et en dernier recours **ce que le code importe réellement**.
+
+**Le SEO s'appliquait quand même.** Seules les règles de niveau projet consultaient la plateforme ; les règles *par page* tournaient sur n'importe quel fichier HTML. Le HTML d'une fenêtre Electron se voyait donc reprocher l'absence de balise canonique, d'Open Graph et de données structurées — sur une page qu'aucun robot ne verra jamais.
+
+Douze faux positifs éliminés sur une seule application :
+
+| Constat | Pourquoi c'était faux |
+|---|---|
+| 10 × `SEO-*` | Une fenêtre d'application n'est pas indexée |
+| `SEC-MISSING-HEADERS` | Des en-têtes HTTP supposent un serveur HTTP |
+| `ROUTE-ORPHAN` | La fenêtre est chargée par `loadFile()`, aucun lien ne pointe vers elle |
+| `ROUTE-BROKEN-LINK` | Vite résout `/src/main.jsx` depuis le dossier de son `index.html`, pas depuis la racine du dépôt |
+
+L'accessibilité, elle, reste vérifiée : une application de bureau doit être utilisable au clavier et au lecteur d'écran autant qu'un site.
+
 #### Une application mobile n'est pas un site web
 
 React Native dépend de `react`. Sans distinction, Argus en concluait « SPA » et reprochait à une application mobile son `robots.txt` absent, son `sitemap.xml` absent et son défaut de rendu serveur — quatre constats sur cinq, tous absurdes.

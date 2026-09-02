@@ -20,7 +20,7 @@ export class ProjectContext {
 
     this.manifests = this.#readManifests();
     this.frameworks = detectFrameworks(this);
-    this.platforms = detectPlatforms(this.frameworks);
+    this.platforms = detectPlatforms(this.frameworks, aDesPagesHtml(this));
     this.stack = summarizeStack(this);
 
     this.#construireSousProjets();
@@ -99,7 +99,7 @@ export class ProjectContext {
       for (const id of perimetre.frameworks) frameworks.add(id);
     }
     this.frameworks = [...frameworks];
-    this.platforms = detectPlatforms(this.frameworks);
+    this.platforms = detectPlatforms(this.frameworks, aDesPagesHtml(this));
   }
 
   /**
@@ -166,7 +166,7 @@ export class Perimetre {
     this.byLanguage = groupBy(files, (f) => f.language);
     this.manifests = readManifests(files, this.byPath, chemin);
     this.frameworks = detectFrameworks(this);
-    this.platforms = detectPlatforms(this.frameworks);
+    this.platforms = detectPlatforms(this.frameworks, aDesPagesHtml(this));
     this.stack = summarizeStack(this);
     this.description = describeProject(this);
     this.nom = this.manifests['package.json']?.data?.name || chemin;
@@ -280,7 +280,23 @@ function detectFrameworks(context) {
     tailwindcss: 'tailwind',
     'styled-components': 'styled-components',
     electron: 'electron',
+    // Un projet Electron moderne n'a pas toujours `electron` en dependance
+    // directe : electron-vite, electron-forge ou electron-builder pilotent
+    // l'installation. Ne reconnaitre que le paquet principal laissait des
+    // applications de bureau entieres passer pour des sites web.
+    'electron-builder': 'electron',
+    'electron-vite': 'electron',
+    'electron-updater': 'electron',
+    'electron-log': 'electron',
+    'electron-store': 'electron',
+    '@electron-forge/cli': 'electron',
+    '@electron/remote': 'electron',
+    '@electron-toolkit/utils': 'electron',
+    '@electron-toolkit/preload': 'electron',
     '@tauri-apps/api': 'tauri',
+    '@tauri-apps/cli': 'tauri',
+    '@capacitor/android': 'capacitor',
+    '@capacitor/ios': 'capacitor',
     '@capacitor/core': 'capacitor',
     '@ionic/angular': 'ionic',
     '@ionic/react': 'ionic',
@@ -340,6 +356,24 @@ function detectFrameworks(context) {
   // Le manifeste natif est parfois le seul indice : un projet Tauri se
   // reconnait a son `src-tauri`, une app Android a son AndroidManifest.
   if (hasFile(/(^|\/)src-tauri\//) || hasFile(/(^|\/)tauri\.conf\.json$/)) found.add('tauri');
+
+  // Dernier recours : ce que le code importe reellement.
+  //
+  // Beaucoup de projets Electron ne declarent pas le paquet — il est installe
+  // globalement, herite d'un espace de travail parent, ou simplement absent
+  // d'un package.json ecrit a la main. Le manifeste se tait, mais
+  // `require('electron')` ne ment pas. Sans ce filet, une application de
+  // bureau etait classee « site statique » et recevait toute l'analyse SEO.
+  for (const [motif, id] of SIGNATURES_DANS_LE_CODE) {
+    if (found.has(id)) continue;
+    if (motif.test(scriptsDuManifeste(pkg))) { found.add(id); continue; }
+    if (motif.test(entetesJavaScript(context))) found.add(id);
+  }
+  // Fichiers de signature : ils suffisent a identifier une application de
+  // bureau meme quand le manifeste ne dit rien d'utile.
+  if (hasFile(/(^|\/)(electron-builder\.(yml|yaml|json|js)|forge\.config\.[cm]?js|electron\.vite\.config\.[cm]?[jt]s)$/)) {
+    found.add('electron');
+  }
   if (hasFile(/(^|\/)AndroidManifest\.xml$/)) found.add('android');
   if (hasFile(/(^|\/)Info\.plist$/) || hasFile(/\.xcodeproj\//)) found.add('ios');
   if (hasFile(/(^|\/)capacitor\.config\.(ts|js|json)$/)) found.add('capacitor');
@@ -350,6 +384,50 @@ function detectFrameworks(context) {
   if (hasFile(/\.github\/workflows\//)) found.add('github-actions');
 
   return [...found];
+}
+
+/** Le perimetre contient-il au moins une page HTML servable ? */
+function aDesPagesHtml(perimetre) {
+  return (perimetre.files || []).some(
+    (f) => f.language === 'html' && f.readable && !f.isGenerated && !f.isVendored,
+  );
+}
+
+/**
+ * Signatures reperables dans le code ou dans les scripts npm.
+ * Volontairement peu nombreuses : uniquement les cas ou se tromper de
+ * plateforme change toute l'analyse.
+ */
+const SIGNATURES_DANS_LE_CODE = [
+  [/\b(?:require\(\s*['"]electron['"]|from\s+['"]electron['"]|electron\s+\.)/, 'electron'],
+  [/@tauri-apps\/(?:api|cli)/, 'tauri'],
+  [/\bfrom\s+['"]react-native['"]/, 'react-native'],
+  [/@capacitor\/core/, 'capacitor'],
+];
+
+function scriptsDuManifeste(pkg) {
+  return Object.values(pkg?.scripts || {}).join(' ; ');
+}
+
+/**
+ * Les premieres lignes des fichiers JavaScript du projet.
+ *
+ * On se limite a l'en-tete de chaque fichier et a un nombre borne de
+ * fichiers : les imports vivent en haut, et l'analyse ne doit pas couter
+ * une lecture integrale du depot pour une question de detection.
+ */
+function entetesJavaScript(context) {
+  let cache = context.shared?.get('entetesJs');
+  if (cache !== undefined) return cache;
+
+  cache = (context.byFamily?.get('js') || [])
+    .slice(0, 200)
+    .filter((f) => f.readable)
+    .map((f) => f.content.slice(0, 1200))
+    .join('\n');
+
+  context.shared?.set('entetesJs', cache);
+  return cache;
 }
 
 /**
@@ -371,7 +449,7 @@ const PLATEFORMES = {
   ],
 };
 
-function detectPlatforms(frameworks) {
+function detectPlatforms(frameworks, aDesPagesHtml = false) {
   const set = new Set(frameworks);
   const cibles = new Set();
   for (const [plateforme, ids] of Object.entries(PLATEFORMES)) {
@@ -390,6 +468,13 @@ function detectPlatforms(frameworks) {
     );
     if (!webPropre) cibles.delete('web');
   }
+
+  // Des pages HTML sans framework restent un site : un dossier de fichiers
+  // `.html` servi tel quel est le plus vieux site web du monde. Le signal
+  // `static-site` n'est pose que par la presence d'un `index.html`, ce qui
+  // laissait de cote les projets sans page d'accueil — et leur retirait toute
+  // l'analyse SEO.
+  if (!cibles.has('mobile') && !cibles.has('desktop') && aDesPagesHtml) cibles.add('web');
 
   if (cibles.size === 0) cibles.add('inconnu');
   return [...cibles];

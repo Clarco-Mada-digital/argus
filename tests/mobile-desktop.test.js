@@ -226,3 +226,108 @@ test('couverture : rien n\'est annonce quand le pack existe', async () => {
     );
   }
 });
+
+test('bureau : une application Electron n\'est pas un site a referencer', async () => {
+  const fs = await import('node:fs');
+  const os = await import('node:os');
+  const pathMod = await import('node:path');
+
+  // Projet Electron moderne : electron-vite, renderer React, `electron` en
+  // dependance de developpement seulement.
+  const dir = fs.mkdtempSync(pathMod.join(os.tmpdir(), 'argus-el-'));
+  fs.mkdirSync(pathMod.join(dir, 'src/renderer'), { recursive: true });
+  fs.writeFileSync(
+    pathMod.join(dir, 'package.json'),
+    JSON.stringify({
+      name: 'bureau',
+      main: './out/main/index.js',
+      devDependencies: { 'electron-vite': '^2.0.0', 'electron-builder': '^24.9.1', react: '^18.2.0' },
+    }),
+  );
+  fs.writeFileSync(pathMod.join(dir, 'electron-builder.yml'), 'appId: com.exemple.app\n');
+  fs.writeFileSync(
+    pathMod.join(dir, 'src/renderer/index.html'),
+    '<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>App</title></head><body><div id="root"></div><script type="module" src="/src/main.jsx"></script></body></html>',
+  );
+  fs.mkdirSync(pathMod.join(dir, 'src/renderer/src'), { recursive: true });
+  fs.writeFileSync(pathMod.join(dir, 'src/renderer/src/main.jsx'), 'export default function App() { return null; }\n');
+
+  const rapport = await scan(dir, { noHistory: true });
+
+  assert.equal(rapport.project.description, 'Electron');
+  assert.deepEqual(rapport.project.platforms, ['desktop']);
+
+  // Le HTML d'une fenetre Electron n'est jamais explore par un robot.
+  assert.deepEqual(
+    rapport.findings.filter((f) => f.ruleId.startsWith('SEO-')),
+    [],
+    'aucune regle SEO ne doit s\'appliquer a une application de bureau',
+  );
+  assert.ok(
+    !rapport.findings.some((f) => f.ruleId === 'SEC-MISSING-HEADERS'),
+    'des en-tetes HTTP supposent un serveur HTTP',
+  );
+  assert.ok(
+    !rapport.findings.some((f) => f.ruleId === 'ROUTE-ORPHAN'),
+    'la fenetre est chargee par loadFile(), aucun lien ne pointe vers elle',
+  );
+  // Vite resout `/src/main.jsx` depuis le dossier de son index.html.
+  assert.ok(
+    !rapport.findings.some((f) => f.ruleId === 'ROUTE-BROKEN-LINK'),
+    'un chemin resolu par l\'empaqueteur n\'est pas un lien mort',
+  );
+
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('bureau : Electron reconnu meme sans dependance declaree', async () => {
+  const fs = await import('node:fs');
+  const os = await import('node:os');
+  const pathMod = await import('node:path');
+
+  // Cas remonte par un utilisateur : le manifeste ne declare rien, mais le
+  // code appelle `require('electron')`. Le projet etait classe site statique
+  // et recevait toute l'analyse SEO.
+  const dir = fs.mkdtempSync(pathMod.join(os.tmpdir(), 'argus-eln-'));
+  fs.writeFileSync(
+    pathMod.join(dir, 'package.json'),
+    JSON.stringify({ name: 'vieille-app', main: 'main.js', scripts: { start: 'electron .' } }),
+  );
+  fs.writeFileSync(
+    pathMod.join(dir, 'main.js'),
+    "const { app, BrowserWindow } = require('electron');\napp.whenReady().then(() => new BrowserWindow({}).loadFile('index.html'));\n",
+  );
+  fs.writeFileSync(
+    pathMod.join(dir, 'index.html'),
+    '<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>App</title></head><body><h1>Bonjour</h1></body></html>',
+  );
+
+  const rapport = await scan(dir, { noHistory: true });
+
+  assert.equal(rapport.project.description, 'Electron');
+  assert.deepEqual(rapport.project.platforms, ['desktop']);
+  assert.deepEqual(rapport.findings.filter((f) => f.ruleId.startsWith('SEO-')), []);
+
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('web : des pages HTML nues restent un site a referencer', async () => {
+  // Le garde-fou de la correction precedente : sans `index.html`, aucun
+  // signal `static-site` n'etait pose et le SEO disparaissait d'un dossier
+  // de pages parfaitement servables.
+  const fs = await import('node:fs');
+  const os = await import('node:os');
+  const pathMod = await import('node:path');
+
+  const dir = fs.mkdtempSync(pathMod.join(os.tmpdir(), 'argus-html-'));
+  fs.writeFileSync(
+    pathMod.join(dir, 'a-propos.html'),
+    '<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>x</title></head><body><h2>Section</h2></body></html>',
+  );
+
+  const rapport = await scan(dir, { noHistory: true, categories: ['seo'] });
+  assert.ok(rapport.project.platforms.includes('web'));
+  assert.ok(rapport.findings.some((f) => f.ruleId === 'SEO-H1-MISSING'));
+
+  fs.rmSync(dir, { recursive: true, force: true });
+});

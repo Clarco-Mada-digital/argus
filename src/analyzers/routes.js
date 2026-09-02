@@ -9,6 +9,24 @@ import {
 import { isQuoted, lineIndexFor } from '../core/scan.js';
 
 /**
+ * Le projet passe-t-il par un outil de construction ?
+ *
+ * Quand c'est le cas, les chemins ecrits dans le HTML sont reecrits a la
+ * compilation : les confronter au systeme de fichiers tel quel n'a pas de sens.
+ */
+function aUnEmpaqueteur(context) {
+  return context.has('vite', 'webpack', 'nextjs', 'nuxt', 'sveltekit', 'astro', 'gatsby', 'remix', 'electron');
+}
+
+/** Le perimetre auquel appartient ce fichier vise-t-il le web ? */
+function perimetreWeb(context, cheminOuFichier) {
+  const chemin = typeof cheminOuFichier === 'string' ? cheminOuFichier : cheminOuFichier?.relativePath;
+  const fichier = chemin ? context.byPath?.get(chemin) : null;
+  const perimetre = context.perimetreDe && fichier ? context.perimetreDe(fichier) : context;
+  return perimetre.cible('web');
+}
+
+/**
  * Analyseur de routes et de liens.
  *
  * Il repond a trois questions :
@@ -225,6 +243,14 @@ function detectBrokenLinks(links, routes, assets, context, report) {
     const bare = resolved.split('?')[0].split('#')[0];
 
     if (assets.has(bare) || assets.has(`${bare}/`) || assets.has(bare.replace(/\/$/, ''))) continue;
+    // Un chemin racine dans une page servie par un empaqueteur n'est pas
+    // resolu depuis la racine du depot mais depuis le dossier de la page :
+    // Vite lit `/src/main.jsx` relativement au dossier de son index.html.
+    // Sans cela, toute application Vite se voyait reprocher son point
+    // d'entree comme lien mort.
+    if (target.startsWith('/') && aUnEmpaqueteur(context) && assets.has(resolveLink(target.slice(1), link.file))) {
+      continue;
+    }
     if (mounts.some((mount) => bare === mount || bare.startsWith(`${mount}/`))) continue;
     if (matchable.some((route) => route.regex.test(bare))) continue;
     // Un lien vers un dossier vise son index : `/blog/` designe `/blog/index.html`.
@@ -301,6 +327,10 @@ function detectOrphanRoutes(routes, links, context, report) {
     // propre d'un 404. La signaler orpheline reprochait a un site d'en avoir
     // une, alors que son absence est justement ce qu'Argus recommande.
     if (route.file && estPageDErreur(route.file)) continue;
+    // Hors du web, la notion de route orpheline n'a pas de sens : le HTML
+    // d'une fenetre Electron est charge par `loadFile()`, aucun lien ne
+    // pointe vers lui et aucun n'a a le faire.
+    if (route.file && !perimetreWeb(context, route.file)) continue;
 
     report({
       ruleId: 'ROUTE-ORPHAN',

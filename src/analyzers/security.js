@@ -318,7 +318,11 @@ function scanProjectLevel(context, report) {
     .join('\n');
 
   const headerSignals = /helmet|Content-Security-Policy|Strict-Transport-Security|X-Frame-Options|SecurityMiddleware|secure_headers|add_header\s+X-|SECURE_HSTS_SECONDS|@fastify\/helmet/i;
-  const isWebApp = context.has('express', 'fastify', 'koa', 'nestjs', 'nextjs', 'nuxt', 'django', 'flask', 'fastapi', 'laravel', 'spring', 'rails', 'static-site');
+  // Des en-tetes de securite HTTP supposent un serveur HTTP. Une application
+  // Electron ou React Native n'en sert aucun : le constat y etait vide de sens.
+  const isWebApp =
+    context.cible('web') &&
+    context.has('express', 'fastify', 'koa', 'nestjs', 'nextjs', 'nuxt', 'django', 'flask', 'fastapi', 'laravel', 'spring', 'rails', 'static-site');
 
   if (isWebApp && !headerSignals.test(allSource)) {
     const rule = CONFIG_SECURITY_RULES.find((r) => r.id === 'SEC-MISSING-HEADERS');
