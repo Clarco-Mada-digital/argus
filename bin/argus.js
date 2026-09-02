@@ -34,7 +34,7 @@ async function main() {
   const { options, positional } = parseArgs(argv, { booleans: BOOLEANS, aliases: ALIASES });
   // `argus ./site` vaut `argus scan ./site` : le premier argument n'est une
   // commande que s'il en porte le nom.
-  const COMMANDS = ['scan', 'serve', 'init', 'rules', 'baseline', 'sync', 'fix', 'crawl', 'history', 'help'];
+  const COMMANDS = ['scan', 'serve', 'mcp', 'init', 'rules', 'baseline', 'sync', 'fix', 'crawl', 'history', 'help'];
   const first = positional[0];
   const isCommand = first !== undefined && COMMANDS.includes(first);
   const command = isCommand ? first : 'scan';
@@ -54,6 +54,8 @@ async function main() {
       return runScan(target, options);
     case 'serve':
       return runServe(target, options);
+    case 'mcp':
+      return runMcp();
     case 'init':
       return runInit(target);
     case 'rules':
@@ -397,6 +399,16 @@ async function runSync(target, options) {
  * Par defaut la commande n'ecrit rien : elle propose, montre le differentiel,
  * et attend une reponse pour chaque fichier.
  */
+/**
+ * Serveur MCP : le dialogue occupe l'entree et la sortie standard.
+ * Aucun affichage n'est possible ici sans corrompre le flux.
+ */
+async function runMcp() {
+  const { demarrerServeurMcp } = await import('../src/mcp/serveur.js');
+  await demarrerServeurMcp();
+  return 0;
+}
+
 async function runFix(target, options) {
   const config = buildConfig(target, options);
   const { files } = await walkProject(config);

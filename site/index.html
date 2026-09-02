@@ -55,7 +55,7 @@
 <div class="zone zone-large hero">
   <div class="hero-grille">
     <div>
-      <p class="etiquette"><span class="pastille"></span> <b>Zéro dépendance</b> · 21 frameworks · 250 tests</p>
+      <p class="etiquette"><span class="pastille"></span> <b>Zéro dépendance</b> · 21 frameworks · 263 tests</p>
       <h1>Il voit ce que<br>vous ne voyez plus.<span class="fin">Une commande suffit.</span></h1>
       <p class="accroche">
         Secrets versionnés, liens qui ne mènent nulle part, code que plus personne n'appelle,
@@ -244,6 +244,25 @@
       <p>
         Ce n'est <em>pas</em> un analyseur syntaxique complet, et c'est délibéré : aucun arbre,
         pas de précédence, pas de suivi inter-fonctions. Une seule question, bien traitée.
+      </p>
+    </div>
+
+    <div class="encart">
+      <h4>Utilisable par un assistant</h4>
+      <p>
+        Argus expose un serveur <strong>MCP</strong> : un assistant peut lire votre projet et
+        proposer des corrections en connaissance de cause, au lieu de deviner. Trois outils —
+        analyser, expliquer une règle, lister les correctifs.
+      </p>
+      <p>
+        <strong>Rien n'est jamais écrit</strong>, sans exception. Les correctifs sortent sous forme
+        de différentiels à lire ; la modification passe obligatoirement par <code>argus fix</code>
+        dans un terminal, où vous validez fichier par fichier. Un test vérifie qu'aucun fichier
+        n'a bougé après un appel.
+      </p>
+      <p>
+        Le contexte d'un assistant est une ressource rare : un scan complet tient en environ
+        320 jetons — une synthèse, les constats les plus graves, et le nombre restant.
       </p>
     </div>
 

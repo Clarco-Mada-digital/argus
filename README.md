@@ -424,6 +424,40 @@ Sur mobile, la navigation **défile** au lieu de disparaître — masquer des en
 
 Une leçon annexe, coûteuse : pendant l'audit, le service worker servait la version précédente du CSS. J'ai « corrigé » deux fois un bogue qui l'était déjà. Le script désactive maintenant le cache et contourne le worker.
 
+## Serveur MCP : donner Argus à un assistant
+
+Argus expose un serveur [MCP](https://modelcontextprotocol.io) sur l'entrée et la sortie standard. Un assistant peut alors **lire votre projet et proposer des corrections en connaissance de cause**, au lieu de deviner.
+
+```jsonc
+// Configuration de l'assistant
+{
+  "mcpServers": {
+    "argus": {
+      "command": "npx",
+      "args": ["github:Clarco-Mada-digital/argus", "mcp"]
+    }
+  }
+}
+```
+
+| Outil | Ce qu'il fait |
+|---|---|
+| `argus_scan` | Score par catégorie puis constats filtrables par gravité et par catégorie |
+| `argus_correctifs` | Les corrections applicables, **sous forme de différentiels à lire** |
+| `argus_regle` | Explique une règle : ce qu'elle détecte, pourquoi, et comment y remédier |
+
+### Trois principes de conception
+
+**Rien n'est jamais écrit.** Le serveur est en lecture seule, sans exception. `argus fix` demande confirmation fichier par fichier dans un terminal ; un assistant ne peut pas donner cette confirmation à la place de l'utilisateur. La description de l'outil le dit en majuscules, pour qu'aucun modèle ne suppose le contraire — et un test vérifie qu'aucun fichier n'a bougé après un appel.
+
+**Le contexte est une ressource rare.** Un projet réel produit des centaines de constats ; les déverser remplirait la fenêtre de l'assistant sans rien lui apprendre. Une synthèse d'abord, des constats filtrés ensuite, et le nombre restant. Un scan complet de la fixture de démonstration tient en **~320 jetons**.
+
+**Zéro dépendance.** Le transport MCP sur stdio est un flux JSON-RPC séparé par des retours à la ligne : quarante lignes suffisent.
+
+### Un défaut trouvé pendant les tests
+
+Un chemin erroné renvoyait « 100/100, 0 fichiers analysés ». Un assistant en aurait conclu que le projet était exemplaire alors qu'il n'avait rien lu. Le chemin est maintenant vérifié, et un dossier vide le dit explicitement — avec la consigne de ne pas en tirer de conclusion.
+
 ## Analyser une page en ligne, et exporter le résultat
 
 La page d'analyse propose deux modes : **un dossier local** et **une page en ligne**.
