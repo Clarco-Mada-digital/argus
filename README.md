@@ -424,6 +424,24 @@ Sur mobile, la navigation **défile** au lieu de disparaître — masquer des en
 
 Une leçon annexe, coûteuse : pendant l'audit, le service worker servait la version précédente du CSS. J'ai « corrigé » deux fois un bogue qui l'était déjà. Le script désactive maintenant le cache et contourne le worker.
 
+## Revue de pull request
+
+`argus scan . --since main` n'analyse que les fichiers modifiés par la branche. Le format `revue` en fait un commentaire de pull request, et `.github/workflows/revue-pr.yml` le poste.
+
+Un rapport dresse l'état d'un projet ; une revue répond à une seule question : **ce changement-ci améliore-t-il ou dégrade-t-il les choses ?** D'où trois règles de conduite :
+
+**Ne montrer que le nouveau.** Afficher cinq cents constats préexistants sur une pull request de trois lignes ferait fermer l'onglet, et le seul point qui comptait serait perdu avec les autres.
+
+**Se taire quand il n'y a rien à dire.** Un commentaire automatique posté à chaque fois cesse d'être lu en deux semaines — et c'est celui qui comptait qu'on rate. Quand aucun constat ne subsiste, le workflow ne poste rien ; si un commentaire précédent existait, il est **remplacé** par « plus rien à signaler » plutôt que laissé à affirmer le contraire.
+
+**Mettre à jour, jamais empiler.** Un marqueur invisible identifie le commentaire d'Argus ; chaque poussée le modifie au lieu d'en ajouter un.
+
+Les annotations inline (`::error file=…`) complètent le commentaire : les problèmes apparaissent aussi dans l'onglet « Files changed », à la bonne ligne.
+
+### Un défaut trouvé en construisant ce workflow
+
+`--since main` sur un dépôt dont la branche s'appelle `master` renvoyait **« 0 fichier modifié »**. L'auteur en aurait conclu que son changement était propre, alors que rien n'avait été comparé. Une référence inexistante est maintenant une erreur explicite, qui liste les branches disponibles.
+
 ## `argus fuites` : les secrets que l'historique garde
 
 Argus dit, pour chaque secret trouvé dans le code : *« elle doit être considérée comme compromise dès lors qu'elle a été versionnée »*. Il était pourtant incapable de dire **lesquelles** l'avaient été — il ne lisait que l'arbre de travail.

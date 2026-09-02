@@ -1,0 +1,102 @@
+name: Revue Argus
+
+# Analyse uniquement ce que la branche introduit, et le commente sur la pull
+# request.
+#
+# Trois regles de conduite, qui decident de tout le reste :
+#
+#   1. Ne montrer que le nouveau. Afficher les constats preexistants sur une
+#      pull request de trois lignes ferait fermer l'onglet, et le seul point
+#      qui comptait serait perdu avec les autres.
+#   2. Se taire quand il n'y a rien a dire. Un commentaire poste a chaque fois
+#      cesse d'etre lu en deux semaines — et c'est celui qui comptait qu'on
+#      rate.
+#   3. Mettre a jour, jamais empiler. Dix commentaires identiques rendent une
+#      discussion illisible et font desactiver l'outil.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  # Une nouvelle poussee annule l'analyse en cours : commenter un etat perime
+  # est pire que ne rien commenter.
+  group: revue-argus-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  revue:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # L'historique complet est necessaire : le mode differentiel compare
+          # depuis l'ancetre commun, que `fetch-depth: 1` rendrait introuvable.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Base de vulnerabilites
+        run: node bin/argus.js sync || true
+
+      - name: Analyser le differentiel
+        id: analyse
+        run: |
+          BASE="origin/${{ github.event.pull_request.base.ref }}"
+
+          # `|| true` : un differentiel avec des constats graves renvoie un code
+          # d'echec, ce qui est le comportement voulu ailleurs mais empecherait
+          # ici de poster le commentaire qui les explique.
+          node bin/argus.js scan . --since "$BASE" --format revue --no-history > revue.md || true
+          node bin/argus.js scan . --since "$BASE" --format github --no-history || true
+
+          if [ -s revue.md ]; then
+            echo "aDesConstats=oui" >> "$GITHUB_OUTPUT"
+          else
+            echo "aDesConstats=non" >> "$GITHUB_OUTPUT"
+          fi
+
+          {
+            echo "### Revue Argus"
+            if [ -s revue.md ]; then head -c 60000 revue.md; else echo "Aucun constat sur les fichiers modifies."; fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Commenter la pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NUMERO: ${{ github.event.pull_request.number }}
+          A_DES_CONSTATS: ${{ steps.analyse.outputs.aDesConstats }}
+          BASE: ${{ github.event.pull_request.base.ref }}
+        run: |
+          # On retrouve notre commentaire par son marqueur invisible, pour le
+          # mettre a jour plutot qu'en ajouter un.
+          EXISTANT=$(gh api "repos/${{ github.repository }}/issues/$NUMERO/comments" \
+            --jq '.[] | select(.body | contains("<!-- argus-revue -->")) | .id' | head -1)
+
+          if [ "$A_DES_CONSTATS" = "oui" ]; then
+            if [ -n "$EXISTANT" ]; then
+              gh api --method PATCH "repos/${{ github.repository }}/issues/comments/$EXISTANT" \
+                -F body=@revue.md
+            else
+              gh api --method POST "repos/${{ github.repository }}/issues/$NUMERO/comments" \
+                -F body=@revue.md
+            fi
+          elif [ -n "$EXISTANT" ]; then
+            # Les points releves ont ete corriges : on ferme la boucle au lieu
+            # de laisser un commentaire perime affirmer le contraire.
+            printf '<!-- argus-revue -->\n\n## Argus — plus rien a signaler\n\nLes points releves precedemment sur les fichiers modifies par rapport a `%s` ont ete traites.\n' "$BASE" > resolu.md
+            gh api --method PATCH "repos/${{ github.repository }}/issues/comments/$EXISTANT" \
+              -F body=@resolu.md
+          fi
+          # Aucun commentaire prealable et rien a signaler : on ne poste rien.
+
+      - name: Echouer si le changement introduit un probleme grave
+        run: |
+          BASE="origin/${{ github.event.pull_request.base.ref }}"
+          node bin/argus.js scan . --since "$BASE" --fail-on high --no-history --silent

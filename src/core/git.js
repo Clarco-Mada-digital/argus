@@ -48,8 +48,26 @@ export function changedFiles(root, ref = 'HEAD') {
     sorties.push(safeGit(root, ['diff', '--name-only', '--diff-filter=d', '--cached']));
     sorties.push(safeGit(root, ['ls-files', '--others', '--exclude-standard']));
   } else {
+    // Une reference inexistante ne doit pas passer pour un diff vide.
+    // `--since main` sur un depot dont la branche s'appelle `master` renvoyait
+    // « 0 fichier modifie » : l'auteur en concluait que son changement etait
+    // propre, alors que rien n'avait ete compare.
+    if (!safeGit(root, ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`])) {
+      const branches = safeGit(root, ['branch', '--format=%(refname:short)'])
+        .split('\n')
+        .filter(Boolean)
+        .slice(0, 6);
+      throw Object.assign(
+        new Error(
+          `La reference « ${ref} » n'existe pas dans ce depot.` +
+            (branches.length ? ` Branches disponibles : ${branches.join(', ')}.` : ''),
+        ),
+        { genre: 'ref' },
+      );
+    }
+
     // Sur une branche, on compare depuis l'ancetre commun : les commits
-    // arrives sur `main` entre-temps ne sont pas de notre fait.
+    // arrives sur la base entre-temps ne sont pas de notre fait.
     base = safeGit(root, ['merge-base', 'HEAD', ref]) || ref;
     sorties.push(safeGit(root, ['diff', '--name-only', '--diff-filter=d', `${base}...HEAD`]));
     sorties.push(safeGit(root, ['diff', '--name-only', '--diff-filter=d', 'HEAD']));

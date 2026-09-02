@@ -11,6 +11,7 @@ import { atLeast, CATEGORY_IDS, SEVERITIES } from '../src/core/severity.js';
 import { SECURITY_RULES } from '../src/rules/security.js';
 import { startServer } from '../src/server/index.js';
 import { syncOsv } from '../src/core/osv.js';
+import { renderRevue } from '../src/report/revue.js';
 import { resolveInstalledVersions } from '../src/core/lockfiles.js';
 import { walkProject } from '../src/core/walker.js';
 import { ProjectContext } from '../src/core/project.js';
@@ -157,7 +158,7 @@ async function runScan(target, options) {
       if (evolution) process.stdout.write(`${renderEvolution(evolution, result)}\n`);
     }
   } else {
-    process.stdout.write(renderFormat(result, format));
+    process.stdout.write(renderFormat(result, format, options));
   }
 
   for (const file of written) {
@@ -201,7 +202,7 @@ function renderEvolution(evolution, result) {
   return `\n${lignes.join('\n')}\n`;
 }
 
-function renderFormat(result, format) {
+function renderFormat(result, format, options = {}) {
   switch (format) {
     case 'json': return renderJson(result);
     case 'sarif': return renderSarif(result);
@@ -209,8 +210,13 @@ function renderFormat(result, format) {
     case 'md': return renderMarkdown(result);
     case 'html': return renderHtml(result);
     case 'compact': return renderCompact(result);
+    case 'revue': {
+      // Une revue peut n'avoir rien a dire : c'est un resultat, pas un vide.
+      const revue = renderRevue(result, { base: options.since || 'main' });
+      return revue ? revue.corps : '';
+    }
     case 'github': return renderGithub(result);
-    default: throw new Error(`Format inconnu : ${format}. Formats disponibles : terminal, json, sarif, markdown, html, compact, github.`);
+    default: throw new Error(`Format inconnu : ${format}. Formats disponibles : terminal, json, sarif, markdown, html, compact, revue, github.`);
   }
 }
 
@@ -237,7 +243,7 @@ function writeOutputs(result, options, config) {
     const ext = path.extname(destination).slice(1);
     const format = { html: 'html', json: 'json', sarif: 'sarif', md: 'markdown', txt: 'compact' }[ext] || 'json';
     fs.mkdirSync(path.dirname(destination), { recursive: true });
-    fs.writeFileSync(destination, renderFormat(result, format), 'utf8');
+    fs.writeFileSync(destination, renderFormat(result, format, options), 'utf8');
     written.push({ label: `Rapport ${format}`, path: destination });
   }
 
