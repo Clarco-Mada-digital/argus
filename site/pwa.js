@@ -99,9 +99,23 @@ function annoncerMiseAJour(worker) {
   fermer.addEventListener('click', () => barre.remove());
 
   barre.append(oeil, texte, bouton, fermer);
+
   bouton.addEventListener('click', () => {
+    bouton.disabled = true;
+    bouton.textContent = 'Rechargement…';
+
+    // On ecoute *avant* de demander la bascule : dans l'autre ordre, un
+    // worker qui prend la main immediatement declenche `controllerchange`
+    // avant que l'ecouteur existe, et le bouton reste sans effet.
+    navigator.serviceWorker.addEventListener('controllerchange', () => location.reload(), {
+      once: true,
+    });
     worker.postMessage('passer-a-la-suite');
-    navigator.serviceWorker.addEventListener('controllerchange', () => location.reload(), { once: true });
+
+    // Filet : si la bascule n'aboutit pas — worker deja actif, navigateur qui
+    // n'emet pas l'evenement —, on recharge quand meme. Un bouton qui ne fait
+    // rien est pire qu'un rechargement de trop.
+    setTimeout(() => location.reload(), 1800);
   });
   document.body.append(barre);
 }

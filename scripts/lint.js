@@ -120,6 +120,47 @@ try {
   problemes.push(`site/analyser.html : carte d'imports illisible (${erreur.message}).`);
 }
 
+// 6. Une regle qui vise un element porteur de `.zone` ne doit pas utiliser la
+//    forme courte `padding` avec une valeur horizontale nulle : elle ecrase le
+//    retrait lateral herite et colle le contenu aux bords de l'ecran.
+//    Erreur commise trois fois — page 404, en-tete, hero et pied — parce
+//    qu'elle est invisible a la lecture et ne se voit qu'a une certaine
+//    largeur. `padding-block` exprime l'intention sans l'effet de bord.
+try {
+  const css = fs.readFileSync(path.join(RACINE, 'site/style.css'), 'utf8');
+  const html = ['index.html', 'analyser.html', '404.html']
+    .map((f) => path.join(RACINE, 'site', f))
+    .filter((f) => fs.existsSync(f))
+    .map((f) => fs.readFileSync(f, 'utf8'))
+    .join('\n');
+
+  // Les classes qui accompagnent `zone` dans le balisage.
+  const classesDeZone = new Set();
+  for (const m of html.matchAll(/class="([^"]*\bzone\b[^"]*)"/g)) {
+    for (const classe of m[1].split(/\s+/)) {
+      if (classe && classe !== 'zone' && classe !== 'zone-large') classesDeZone.add(classe);
+    }
+  }
+
+  for (const classe of classesDeZone) {
+    const regle = new RegExp(`\\.${classe}\\s*\\{[^}]*`, 'g');
+    for (const m of css.matchAll(regle)) {
+      const raccourci = /(?:^|[;{])\s*padding:\s*([^;}]+)/.exec(m[0]);
+      if (!raccourci) continue;
+      const valeurs = raccourci[1].trim().split(/\s+/);
+      if (valeurs.length >= 2 && valeurs[1] === '0') {
+        problemes.push(
+          `site/style.css : .${classe} porte aussi la classe « zone » et pose ` +
+            `\`padding: ${raccourci[1].trim()}\`, ce qui annule son retrait lateral.\n      ` +
+            'Utilisez `padding-block` : le contenu se colle sinon aux bords de l\'ecran.',
+        );
+      }
+    }
+  }
+} catch (erreur) {
+  problemes.push(`Verification du retrait lateral impossible : ${erreur.message}`);
+}
+
 function relatif(fichier) {
   return path.relative(RACINE, fichier);
 }

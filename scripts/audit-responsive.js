@@ -27,7 +27,7 @@
 const BASE = process.argv[2] || 'http://127.0.0.1:8731';
 const PORT_DEBOGAGE = Number(process.env.PORT_DEBOGAGE || 9223);
 const PAGES = ['index.html', 'analyser.html', 'demo.html', '404.html'];
-const LARGEURS = [320, 360, 414, 768, 1024, 1280];
+const LARGEURS = [320, 360, 414, 480, 600, 720, 768, 900, 1024, 1180, 1280, 1440, 1700];
 
 const SONDE = `(() => {
   const largeur = document.documentElement.clientWidth;
@@ -67,7 +67,30 @@ const SONDE = `(() => {
     if (r.height < 32) petites.push(el.tagName.toLowerCase() + ' ' + Math.round(r.height) + 'px');
   }
 
+  // Marge laterale du *contenu*, pas du conteneur.
+  //
+  // getBoundingClientRect renvoie la boite avec son remplissage : un
+  // conteneur pleine largeur muni d'un padding interne y parait colle au
+  // bord alors qu'il ne l'est pas. On mesure donc les enfants visibles,
+  // c'est-a-dire ce que l'oeil voit reellement.
+  const marges = [];
+  for (const sel of ['.bandeau-i', '.pied-grille', '.pied-bas', 'main .zone', '.hero-grille']) {
+    const conteneur = document.querySelector(sel);
+    if (!conteneur) continue;
+
+    const enfants = [...conteneur.children].filter((c) => {
+      const r = c.getBoundingClientRect();
+      return r.width > 0 && r.height > 0;
+    });
+    if (enfants.length === 0) continue;
+
+    const gauche = Math.round(Math.min(...enfants.map((c) => c.getBoundingClientRect().left)));
+    const droite = Math.round(largeur - Math.max(...enfants.map((c) => c.getBoundingClientRect().right)));
+    if (gauche < 10 || droite < 10) marges.push(sel + ' ' + gauche + '/' + droite + 'px');
+  }
+
   return JSON.stringify({
+    marges,
     deborde: document.documentElement.scrollWidth > largeur + 1,
     scrollWidth: document.documentElement.scrollWidth,
     clientWidth: largeur,
@@ -161,6 +184,11 @@ for (const chemin of PAGES) {
       for (const coupable of mesure.coupables) process.stdout.write(`            ${coupable}\n`);
     } else {
       process.stdout.write(`  ${String(largeur).padStart(4)}px  ok\n`);
+    }
+
+    if (mesure.marges?.length) {
+      process.stdout.write(`            colle au bord : ${mesure.marges.join(', ')}\n`);
+      echecs++;
     }
 
     if (largeur < 768 && mesure.petites.length > 0) {

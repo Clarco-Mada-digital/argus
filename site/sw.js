@@ -27,7 +27,16 @@ self.addEventListener('install', (evenement) => {
       // `reload` court-circuite le cache HTTP du navigateur : sans cela, une
       // version perimee peut etre recopiee telle quelle dans le nouveau cache.
       await cache.addAll(RESSOURCES.map((url) => new Request(url, { cache: 'reload' })));
-      await self.skipWaiting();
+
+      // Pas de `skipWaiting()` ici.
+      //
+      // Il rendait le bouton « Recharger » inoperant : le nouveau worker
+      // s'activait des la fin de l'installation, donc `controllerchange` se
+      // declenchait *avant* que l'utilisateur clique. Le clic posait ensuite
+      // un ecouteur sur un evenement deja passe, et il ne se passait rien.
+      //
+      // Le worker attend maintenant. L'annonce dit vrai — « une nouvelle
+      // version est prete » —, et c'est le clic qui declenche la bascule.
     })(),
   );
 });

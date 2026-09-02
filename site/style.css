@@ -129,7 +129,10 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .bandeau-i { display: flex; align-items: center; gap: var(--e3); height: 68px; }
 
 /* ------------------------------------------------------------------- Hero */
-.hero { padding: var(--e7) 0 var(--e6); }
+/* `padding-block` et non la forme courte : `.hero` est lui-meme un `.zone`,
+   et `padding: X 0 Y` remettait a zero le retrait horizontal herite — le
+   contenu se collait aux bords de l'ecran. */
+.hero { padding-block: var(--e7) var(--e6); }
 .hero-grille { display: grid; grid-template-columns: 1.15fr .85fr; gap: var(--e6); align-items: center; }
 @media (max-width: 940px) { .hero-grille { grid-template-columns: 1fr; gap: var(--e5); } }
 
@@ -364,7 +367,7 @@ code { overflow-wrap: anywhere; }
 @media (max-width: 420px) {
   /* En dessous de 420 px, la navigation ne tient plus a cote du logo :
      elle passe sous lui plutot que de deborder. */
-  .bandeau-i { flex-wrap: wrap; row-gap: 8px; height: auto; padding: 12px 0; }
+  .bandeau-i { flex-wrap: wrap; row-gap: 8px; height: auto; padding-block: 12px; }
   .nav { margin-left: 0; width: 100%; justify-content: flex-start; gap: 16px; }
 
   .zone { padding: 0 14px; }
@@ -486,7 +489,7 @@ code { overflow-wrap: anywhere; }
   display: grid;
   grid-template-columns: minmax(0, 1.6fr) repeat(2, minmax(0, 1fr));
   gap: var(--e5);
-  padding: var(--e6) 0 var(--e5);
+  padding-block: var(--e6) var(--e5);
 }
 .pied-marque { display: flex; gap: 14px; align-items: flex-start; }
 .pied-marque p { margin: 0; color: var(--text-dim); font-size: .93rem; line-height: 1.7; }
@@ -507,7 +510,7 @@ code { overflow-wrap: anywhere; }
 .pied-bas {
   display: flex; justify-content: space-between; gap: var(--e3); flex-wrap: wrap;
   border-top: 1px solid var(--border);
-  padding: 18px 0 var(--e5);
+  padding-block: 18px var(--e5);
   color: var(--text-faint); font-size: .86rem;
 }
 .pied-bas p { margin: 0; }
@@ -520,7 +523,7 @@ code { overflow-wrap: anywhere; }
 @media (max-width: 720px) {
   /* La navigation ne disparait pas : elle defile. Masquer des entrees prive
      le visiteur mobile de la moitie du site pour epargner 40 px. */
-  .bandeau-i { height: auto; padding: 10px 0; gap: 10px; }
+  .bandeau-i { height: auto; padding-block: 10px; gap: 10px; }
   /* Un degrade de bord signale que la rangee defile. Sans lui, la pastille
      coupee au bord se lit comme un defaut d'affichage plutot que comme une
      invitation a faire glisser — c'etait le cas sur la capture mobile. */
