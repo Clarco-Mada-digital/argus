@@ -228,6 +228,33 @@ Les imports sont résolus selon les conventions de chaque écosystème : **PSR-4
 
 Pour ajouter un framework : un module dans `src/rules/frameworks/`, référencé dans son index.
 
+## Monorepos
+
+Un dépôt qui contient plusieurs applications n'était, en pratique, **pas analysé**. La détection ne lisait que le manifeste racine — lequel ne déclare le plus souvent qu'un orchestrateur (`turbo`, `nx`, `lerna`). Un dépôt Next.js + Expo se résumait à `node`, et aucune règle spécialisée ne s'activait.
+
+Argus découpe désormais le dépôt et juge chaque application sur ce qu'elle déclare :
+
+```
+Projet        Monorepo · 3 projets (React Native (Expo), Next.js, React) · mobile et web
+  └ apps/mobile  React Native (Expo) · mobile
+  └ apps/web     Next.js · web
+  └ packages/ui  React · web
+```
+
+L'attribution se fait **par manifeste**, pas par déclaration d'espace de travail : `workspaces`, `pnpm-workspace.yaml`, `lerna.json`, les membres Cargo et `go.work` décrivent la même réalité avec cinq syntaxes, alors qu'un dossier portant un manifeste est un sous-projet dans tous les cas — y compris quand rien ne le déclare, ce qui est fréquent pour un backend posé à côté d'un front.
+
+Trois faux positifs disparaissent au passage, tous dus à des conventions testées depuis la racine du dépôt au lieu de l'application :
+
+| Constat | Pourquoi c'était faux |
+|---|---|
+| `apps/web/pages/contact.jsx` — *code mort* | C'est une page Next.js, chargée par le routeur |
+| `robots.txt absent` **×2** | `packages/ui` est une bibliothèque de composants, pas un site |
+| *« Créez `public/robots.txt` »* | À la racine du dépôt, il ne serait jamais servi — le conseil dit maintenant `apps/web/public/robots.txt` |
+
+Ce qui reste global le reste volontairement : le graphe d'imports et la détection de code mort traversent les paquets, ce qui est exactement ce qu'on veut d'un monorepo — un composant partagé que plus personne n'importe est bien mort.
+
+Les dossiers de plateforme native (`android/`, `ios/`, `src-tauri/`) ne sont pas séparés : ce sont des cibles de compilation, et les isoler priverait le pack mobile du contexte de son application.
+
 ## Le site est installable et fonctionne hors ligne
 
 L'analyseur en ligne tourne **entièrement dans l'onglet** : aucun fichier ne part sur le réseau. Il n'y avait donc aucune raison qu'il ait besoin du réseau pour se charger.

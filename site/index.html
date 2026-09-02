@@ -49,7 +49,7 @@
 <div class="zone zone-large hero">
   <div class="hero-grille">
     <div>
-      <p class="etiquette"><span class="pastille"></span> <b>Zéro dépendance</b> · 20 frameworks · 202 tests</p>
+      <p class="etiquette"><span class="pastille"></span> <b>Zéro dépendance</b> · 20 frameworks · 214 tests</p>
       <h1>Il voit ce que<br>vous ne voyez plus.<span class="fin">Une commande suffit.</span></h1>
       <p class="accroche">
         Secrets versionnés, liens qui ne mènent nulle part, code que plus personne n'appelle,
@@ -218,6 +218,21 @@
     <div class="fw"><div class="fw-nom">Electron</div><p><code>nodeIntegration</code>, <code>contextIsolation: false</code>, <code>webSecurity: false</code>. Le renderer affiche du HTML ; s'il a aussi Node, toute XSS devient une exécution de code.</p></div>
     <div class="fw"><div class="fw-nom">Kotlin · Swift natifs</div><p>Un <code>checkServerTrusted</code> au corps vide ne lève jamais d'exception : par contrat, cela signifie « certificat valide ». Tous le sont donc. Plus <code>UserDefaults</code>, <code>SharedPreferences</code>, trousseau trop accessible.</p></div>
     <div class="fw"><div class="fw-nom">Manifestes Android · iOS</div><p>Règle <strong>transverse</strong> sur les manifestes natifs, quel que soit l'outil qui les a générés : trafic en clair, <code>debuggable</code>, <code>allowBackup</code>, ATS désactivé. Couvre aussi Capacitor, Ionic, Kotlin et Swift.</p></div>
+
+    <div class="encart">
+      <h4>Les monorepos, application par application</h4>
+      <p>
+        Un dépôt qui contient plusieurs applications n'était en pratique pas analysé : la
+        détection ne lisait que le manifeste racine, lequel ne déclare souvent qu'un
+        orchestrateur. Un dépôt Next.js + Expo se résumait à « node ».
+      </p>
+      <p>
+        Chaque application est désormais jugée sur ce qu'elle déclare — et les conventions
+        (pages d'un routeur, <code>robots.txt</code>) sont testées relativement à
+        l'application, plus depuis la racine du dépôt. Le graphe d'imports, lui, reste
+        global : un composant partagé que plus personne n'importe est bien mort.
+      </p>
+    </div>
 
     <div class="encart">
       <h4>Installable, et vraiment hors ligne</h4>

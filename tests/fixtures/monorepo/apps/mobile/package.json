@@ -1,0 +1,11 @@
+{
+  "name": "@monorepo/mobile",
+  "main": "expo-router/entry",
+  "dependencies": {
+    "expo": "~50.0.14",
+    "react": "18.2.0",
+    "react-native": "0.73.6",
+    "@monorepo/ui": "*",
+    "@react-native-async-storage/async-storage": "^1.21.0"
+  }
+}

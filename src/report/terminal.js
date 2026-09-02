@@ -61,6 +61,25 @@ export function renderReport(result, { verbose = false, maxPerRule = 3, maxFindi
   return out.filter(Boolean).join('\n');
 }
 
+/**
+ * Un monorepo merite d'etre montre projet par projet : c'est la seule facon
+ * de voir d'un coup d'oeil que `apps/mobile` est bien analysee comme une
+ * application mobile et non comme un site.
+ */
+function renderSousProjets(project) {
+  const sous = project.sousProjets || [];
+  if (sous.length === 0) return [];
+
+  const noms = { web: 'web', mobile: 'mobile', desktop: 'bureau' };
+  const largeur = Math.max(...sous.map((p) => p.chemin.length));
+
+  return sous.map((p) => {
+    const cibles = (p.platforms || []).map((c) => noms[c]).filter(Boolean).join(', ');
+    const detail = [p.description, cibles].filter(Boolean).join(' · ');
+    return `  ${color.dim('  └')} ${p.chemin.padEnd(largeur)}  ${color.dim(detail)}`;
+  });
+}
+
 function renderHeader(result) {
   const { project } = result;
   // On ne classe que le code applicatif : compter le JSON et le YAML ecrasait
@@ -82,6 +101,7 @@ function renderHeader(result) {
     '',
     `  ${color.dim('Fichiers')}      ${project.analyzed} analyses ${color.dim(`(${project.files} indexes, ${project.skipped} ignores)`)}`,
     project.description ? `  ${color.dim('Projet')}        ${identite}` : null,
+    ...renderSousProjets(project),
     stack ? `  ${color.dim('Langages')}      ${stack}` : null,
     project.frameworks.length ? `  ${color.dim('Detecte')}       ${project.frameworks.slice(0, 8).join(', ')}` : null,
     `  ${color.dim('Duree')}         ${(result.durationMs / 1000).toFixed(2)} s`,

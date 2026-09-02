@@ -331,10 +331,16 @@ function file_family(file) {
 
 /** Points d'entree implicites : ces fichiers ne sont jamais « morts ». */
 export function isEntryPoint(file, context) {
-  const rel = file.relativePath;
+  // Les conventions de framework sont relatives a *l'application*, pas au
+  // depot : dans un monorepo, `apps/web/pages/contact.jsx` est une page
+  // Next.js, chargee par le routeur. Juger sur le chemin depuis la racine la
+  // declarait morte, ce qui est le pire des faux positifs — il designe du
+  // code parfaitement vivant.
+  const perimetre = context.perimetreDe ? context.perimetreDe(file) : context;
+  const rel = perimetre.relatif ? perimetre.relatif(file.relativePath) : file.relativePath;
   const name = file.name;
 
-  const pkg = context.manifests['package.json']?.data;
+  const pkg = perimetre.manifests['package.json']?.data;
   if (pkg) {
     const declared = [pkg.main, pkg.module, pkg.browser, pkg.types, ...(Object.values(pkg.bin || {}) || [])]
       .filter((v) => typeof v === 'string')

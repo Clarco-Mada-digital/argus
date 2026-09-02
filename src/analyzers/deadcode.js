@@ -230,7 +230,16 @@ function isPublicApiFile(file, context) {
   // `getStaticPaths`. Aucun de ces symboles n'est jamais importe.
   if (/^\+(page|layout|server|error)\./.test(file.name)) return true;
   if (/(^|\/)(server\/(api|routes)|src\/(routes|pages))\//.test(file.relativePath)) return true;
-  const pkg = context.manifests['package.json']?.data;
+  // Dossier de routage, relativement a *l'application*. Un composant de page
+  // est appele par le routeur, quel que soit son nom — et dans un monorepo il
+  // vit sous `apps/web/pages/`, que le test ancre a la racine manquait.
+  const perimetre = context.perimetreDe ? context.perimetreDe(file) : context;
+  const relatif = perimetre.relatif ? perimetre.relatif(file.relativePath) : file.relativePath;
+  if (perimetre.has?.('nextjs', 'nuxt', 'remix', 'sveltekit', 'astro', 'expo') &&
+      /^(pages|app|routes)\//.test(relatif)) {
+    return true;
+  }
+  const pkg = perimetre.manifests['package.json']?.data;
   if (pkg?.main && file.relativePath.endsWith(pkg.main.replace(/^\.\//, ''))) return true;
   return false;
 }

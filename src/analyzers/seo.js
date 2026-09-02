@@ -534,22 +534,70 @@ function validateJsonLd(page, push) {
   }
 }
 
-/** robots.txt, sitemap.xml, manifest, redirections. */
-function analyzeProjectFiles(context, report) {
-  const isWeb = context.cible('web');
-  if (!isWeb) return;
+/**
+ * robots.txt, sitemap.xml, manifest, redirections.
+ *
+ * Dans un monorepo, la verification porte sur *chaque application web*, pas
+ * sur le depot. Chercher robots.txt a la racine d'un depot qui contient
+ * `apps/web` et `apps/mobile` conduisait a conseiller de creer
+ * `public/robots.txt` a cote du package.json de l'orchestrateur, ou il ne
+ * serait jamais servi — un conseil non seulement inutile, mais trompeur.
+ */
+/**
+ * Un paquet de composants partages n'est pas un site.
+ *
+ * `packages/ui` depend de React, donc vise le web au sens des plateformes —
+ * mais rien n'y est servi : lui reprocher un robots.txt absent produisait le
+ * meme constat deux fois dans un monorepo, dont une fois pour un dossier qui
+ * ne sera jamais visite par un robot.
+ *
+ * Le critere est ce que le perimetre *produit* : un framework qui rend des
+ * pages, un index.html, ou un dossier de routes.
+ */
+const FRAMEWORKS_DE_SITE = [
+  'nextjs', 'nuxt', 'sveltekit', 'astro', 'gatsby', 'remix', 'static-site',
+  'django', 'flask', 'fastapi', 'laravel', 'symfony', 'rails', 'spring',
+  'express', 'fastify', 'koa', 'nestjs', 'angular', 'vue-router', 'react-router',
+];
 
-  const robots = context.files.find((f) => f.name === 'robots.txt');
-  const sitemap = context.files.find((f) => /^sitemap.*\.(xml|txt)$/i.test(f.name) || /sitemap\.[jt]s$/.test(f.name));
+function estApplicationWeb(perimetre) {
+  if (perimetre.has(...FRAMEWORKS_DE_SITE)) return true;
+  return perimetre.files.some((f) => {
+    const rel = perimetre.relatif ? perimetre.relatif(f.relativePath) : f.relativePath;
+    return f.name === 'index.html' || /^(src\/)?(pages|routes|views|app)\//.test(rel);
+  });
+}
+
+function analyzeProjectFiles(context, report) {
+  const perimetres = (context.sousProjets || []).filter(
+    (p) => p.cible('web') && estApplicationWeb(p),
+  );
+  if (perimetres.length > 0) {
+    for (const perimetre of perimetres) analyserFichiersDeSite(perimetre, context, report);
+    return;
+  }
+  if (!context.cible('web')) return;
+  analyserFichiersDeSite(context, context, report);
+}
+
+function analyserFichiersDeSite(perimetre, context, report) {
+  // Le prefixe rend les messages actionnables : « apps/web/public/robots.txt »
+  // dit ou creer le fichier, « public/robots.txt » laisse deviner.
+  const prefixe = perimetre.chemin ? `${perimetre.chemin}/` : '';
+  const emettre = (constat) =>
+    report({ ...constat, message: prefixe ? `${prefixe} — ${constat.message}` : constat.message });
+
+  const robots = perimetre.files.find((f) => f.name === 'robots.txt');
+  const sitemap = perimetre.files.find((f) => /^sitemap.*\.(xml|txt)$/i.test(f.name) || /sitemap\.[jt]s$/.test(f.name));
 
   if (!robots) {
-    report({
+    emettre({
       ruleId: 'SEO-ROBOTS-MISSING',
       severity: 'medium',
       title: 'robots.txt absent',
       message: 'Aucun fichier robots.txt : vous ne controlez pas ce que les robots explorent, et vous ne signalez pas votre sitemap.',
       suggestion:
-        'Creez public/robots.txt :\nUser-agent: *\nAllow: /\nDisallow: /admin/\nSitemap: https://votre-domaine.tld/sitemap.xml',
+        `Creez ${prefixe}public/robots.txt :\nUser-agent: *\nAllow: /\nDisallow: /admin/\nSitemap: https://votre-domaine.tld/sitemap.xml`,
       effort: 'rapide',
       docs: 'https://developers.google.com/search/docs/crawling-indexing/robots/intro',
     });
@@ -582,7 +630,7 @@ function analyzeProjectFiles(context, report) {
   }
 
   if (!sitemap) {
-    report({
+    emettre({
       ruleId: 'SEO-SITEMAP-MISSING',
       severity: 'medium',
       title: 'sitemap.xml absent',
@@ -593,9 +641,9 @@ function analyzeProjectFiles(context, report) {
     });
   }
 
-  const hasManifest = context.files.some((f) => /^(site\.)?(web)?manifest(\.json)?$/i.test(f.name) || f.name === 'manifest.json');
-  if (!hasManifest && context.cible('web') && context.has('static-site', 'nextjs', 'nuxt', 'react', 'vue')) {
-    report({
+  const hasManifest = perimetre.files.some((f) => /^(site\.)?(web)?manifest(\.json)?$/i.test(f.name) || f.name === 'manifest.json');
+  if (!hasManifest && perimetre.has('static-site', 'nextjs', 'nuxt', 'react', 'vue')) {
+    emettre({
       ruleId: 'SEO-MANIFEST-MISSING',
       severity: 'info',
       title: 'Manifeste web absent',

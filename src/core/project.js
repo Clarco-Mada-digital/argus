@@ -1,3 +1,4 @@
+import { decouvrirSousProjets, aUneDeclarationDEspaceDeTravail, attribuer } from './workspaces.js';
 import path from 'node:path';
 import { stripJsonComments } from './config.js';
 
@@ -21,6 +22,9 @@ export class ProjectContext {
     this.frameworks = detectFrameworks(this);
     this.platforms = detectPlatforms(this.frameworks);
     this.stack = summarizeStack(this);
+
+    this.#construireSousProjets();
+
     this.description = describeProject(this);
 
     /** Rempli par l'analyseur de routes, consomme par SEO et code mort. */
@@ -54,30 +58,68 @@ export class ProjectContext {
     return frameworkIds.some((id) => this.frameworks.includes(id));
   }
 
-  #readManifests() {
-    const manifests = {};
-    const load = (name, parser) => {
-      const file = this.byPath.get(name) || this.files.find((f) => f.relativePath.endsWith(`/${name}`));
-      if (!file || !file.readable) return;
-      try {
-        manifests[name] = { file, data: parser(file.content) };
-      } catch {
-        manifests[name] = { file, data: null, invalid: true };
-      }
-    };
+  /**
+   * Construit les perimetres et fusionne leurs conclusions dans la racine.
+   *
+   * Les frameworks et les plateformes de la racine deviennent l'union de
+   * ceux des sous-projets : sans cela, un depot dont le manifeste racine ne
+   * declare qu'un orchestrateur n'activait aucune regle specialisee, et un
+   * monorepo restait de fait non analyse.
+   */
+  #construireSousProjets() {
+    const chemins = decouvrirSousProjets(this.files);
+    this.estMonorepo =
+      chemins.length >= 2 ||
+      (chemins.length === 1 && aUneDeclarationDEspaceDeTravail(this.files, this.manifests));
 
-    load('package.json', (c) => JSON.parse(stripJsonComments(c)));
-    load('composer.json', (c) => JSON.parse(stripJsonComments(c)));
-    load('tsconfig.json', (c) => JSON.parse(stripJsonComments(c)));
-    load('pubspec.yaml', parseSimpleYaml);
-    load('requirements.txt', parseRequirements);
-    load('pyproject.toml', parseSimpleToml);
-    load('pom.xml', (c) => c);
-    load('build.gradle', (c) => c);
-    load('go.mod', (c) => c);
-    load('Gemfile', (c) => c);
-    load('Cargo.toml', parseSimpleToml);
-    return manifests;
+    if (!this.estMonorepo) {
+      this.sousProjets = [];
+      this.#perimetres = new Map();
+      return;
+    }
+
+    const parChemin = new Map(chemins.map((c) => [c, []]));
+    const racine = [];
+    for (const file of this.files) {
+      const chemin = attribuer(file.relativePath, chemins);
+      if (chemin) parChemin.get(chemin).push(file);
+      else racine.push(file);
+    }
+
+    this.sousProjets = chemins
+      .map((chemin) => new Perimetre(chemin, parChemin.get(chemin), this.config))
+      // Un dossier qui ne porte qu'un manifeste, sans code, n'apprend rien.
+      .filter((p) => p.files.length > 1)
+      .sort((a, b) => a.chemin.localeCompare(b.chemin));
+
+    this.#perimetres = new Map(this.sousProjets.map((p) => [p.chemin, p]));
+
+    const frameworks = new Set(this.frameworks);
+    for (const perimetre of this.sousProjets) {
+      for (const id of perimetre.frameworks) frameworks.add(id);
+    }
+    this.frameworks = [...frameworks];
+    this.platforms = detectPlatforms(this.frameworks);
+  }
+
+  /**
+   * Le perimetre auquel appartient un fichier, ou la racine.
+   *
+   * C'est ce que doivent consulter les regles sensibles au contexte : le SEO
+   * n'a pas de sens dans `apps/mobile` meme si `apps/web` existe a cote, et
+   * les conventions de points d'entree de Next.js sont relatives a
+   * l'application, pas au depot.
+   */
+  perimetreDe(file) {
+    if (!this.sousProjets?.length) return this;
+    const chemin = attribuer(file.relativePath ?? file, this.sousProjets.map((p) => p.chemin));
+    return chemin ? this.#perimetres.get(chemin) : this;
+  }
+
+  #perimetres = new Map();
+
+  #readManifests() {
+    return readManifests(this.files, this.byPath, '');
   }
 
   /** Toutes les dependances declarees, tous ecosystemes confondus. */
@@ -103,6 +145,93 @@ export class ProjectContext {
     }
     return deps;
   }
+}
+
+/**
+ * Perimetre d'analyse : un sous-projet d'un monorepo, avec ses propres
+ * manifestes, frameworks et plateformes.
+ *
+ * C'est le meme calcul que pour la racine, applique a un sous-ensemble de
+ * fichiers. Un depot qui contient une application Next.js et une application
+ * Expo a donc deux perimetres, chacun juge sur ce qu'il declare — au lieu
+ * d'une detection unique qui melangeait les deux, ou plus souvent n'en
+ * voyait aucune.
+ */
+export class Perimetre {
+  constructor(chemin, files, config) {
+    this.chemin = chemin;
+    this.config = config;
+    this.files = files;
+    this.byPath = new Map(files.map((f) => [f.relativePath, f]));
+    this.byLanguage = groupBy(files, (f) => f.language);
+    this.manifests = readManifests(files, this.byPath, chemin);
+    this.frameworks = detectFrameworks(this);
+    this.platforms = detectPlatforms(this.frameworks);
+    this.stack = summarizeStack(this);
+    this.description = describeProject(this);
+    this.nom = this.manifests['package.json']?.data?.name || chemin;
+  }
+
+  sources({ includeTests = true, families = null, languages = null } = {}) {
+    return this.files.filter((f) => {
+      if (!f.readable) return false;
+      if (!includeTests && f.isTest) return false;
+      if (families && !families.includes(f.family)) return false;
+      if (languages && !languages.includes(f.language)) return false;
+      return true;
+    });
+  }
+
+  has(...frameworkIds) {
+    return frameworkIds.some((id) => this.frameworks.includes(id));
+  }
+
+  cible(...plateformes) {
+    return plateformes.some((p) => this.platforms.includes(p));
+  }
+
+  /** Chemin d'un fichier relativement a ce perimetre, pour les conventions. */
+  relatif(cheminRelatif) {
+    if (!this.chemin) return cheminRelatif;
+    return cheminRelatif.startsWith(`${this.chemin}/`)
+      ? cheminRelatif.slice(this.chemin.length + 1)
+      : cheminRelatif;
+  }
+}
+
+/**
+ * Lit les manifestes d'un perimetre.
+ *
+ * `prefixe` restreint la recherche a un sous-projet. Sans lui, dans un
+ * monorepo, le manifeste racine — celui de l'orchestrateur, qui ne declare
+ * que turbo ou nx — repondait pour toutes les applications contenues.
+ */
+function readManifests(files, byPath, prefixe = '') {
+  const manifests = {};
+  const load = (name, parser) => {
+    const file = prefixe
+      ? byPath.get(`${prefixe}/${name}`)
+      : byPath.get(name) || files.find((f) => f.relativePath.endsWith(`/${name}`));
+    if (!file || !file.readable) return;
+    try {
+      manifests[name] = { file, data: parser(file.content) };
+    } catch {
+      manifests[name] = { file, data: null, invalid: true };
+    }
+  };
+
+  load('package.json', (c) => JSON.parse(stripJsonComments(c)));
+  load('composer.json', (c) => JSON.parse(stripJsonComments(c)));
+  load('tsconfig.json', (c) => JSON.parse(stripJsonComments(c)));
+  load('pubspec.yaml', parseSimpleYaml);
+  load('requirements.txt', parseRequirements);
+  load('pyproject.toml', parseSimpleToml);
+  load('pom.xml', (c) => c);
+  load('build.gradle', (c) => c);
+  load('go.mod', (c) => c);
+  load('Gemfile', (c) => c);
+  load('Cargo.toml', parseSimpleToml);
+  return manifests;
 }
 
 function groupBy(items, keyFn) {
@@ -339,6 +468,11 @@ const IDENTITES = [
 ];
 
 function describeProject(context) {
+  if (context.estMonorepo && context.sousProjets?.length) {
+    const noms = context.sousProjets.map((p) => p.description);
+    const distincts = [...new Set(noms)];
+    return `Monorepo · ${context.sousProjets.length} projets (${distincts.slice(0, 3).join(', ')}${distincts.length > 3 ? '…' : ''})`;
+  }
   const identite = IDENTITES.find((candidat) => context.frameworks.includes(candidat.id));
   const principal = context.stack.find((s) => s.code);
   if (identite) return identite.label;
