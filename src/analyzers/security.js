@@ -1,6 +1,8 @@
 import { SECURITY_RULES, CONFIG_SECURITY_RULES } from '../rules/security.js';
 import { detectSecrets, redact } from '../rules/secrets.js';
 import { lineIndexFor, maskedSource, matches } from '../core/scan.js';
+import { analyserPortees, ORIGINES } from '../lang/js/portees.js';
+import { analyserPortees as analyserPorteesPython } from '../lang/python/portees.js';
 
 /**
  * Analyseur de securite : motifs dangereux, secrets, configuration.
@@ -83,17 +85,22 @@ function scanPatterns(file, context, report, cache) {
       if (rule.ignoreIf && rule.ignoreIf(lineText, file)) continue;
       if (isSuppressed(index, position.line)) continue;
 
+      const flux = rule.fluxDeDonnees
+        ? graduerParLeFlux(file, rule, match, index, position)
+        : {};
+      if (flux === null) continue; // toutes les valeurs sont litterales
+
       report({
         ruleId: rule.id,
         severity: adjustSeverity(rule, file),
         title: rule.title,
-        message: rule.message,
+        message: flux.message || rule.message,
         file: file.relativePath,
         line: position.line,
         column: position.column,
         snippet: lineText,
         suggestion: rule.suggestion,
-        confidence: file.isTest ? 'tentative' : rule.confidence || 'firm',
+        confidence: file.isTest ? 'tentative' : flux.confidence || rule.confidence || 'firm',
         effort: rule.effort || 'rapide',
         docs: rule.cwe ? `https://cwe.mitre.org/data/definitions/${rule.cwe.replace('CWE-', '')}.html` : null,
         tags: [rule.cwe, rule.owasp].filter(Boolean),
@@ -101,6 +108,91 @@ function scanPatterns(file, context, report, cache) {
       });
     }
   }
+}
+
+/**
+ * Portees d'un fichier, calculees une fois.
+ *
+ * L'analyse coute un balayage de jetons : on la reserve aux fichiers ou une
+ * regle sensible au flux a effectivement declenche.
+ */
+const PORTEES = new WeakMap();
+
+function porteesDe(file) {
+  if (!PORTEES.has(file)) {
+    try {
+      const analyser = file.family === 'python' ? analyserPorteesPython : analyserPortees;
+      PORTEES.set(file, analyser(file.content));
+    } catch {
+      // Une source que le lexeur ne sait pas lire ne doit pas faire echouer
+      // l'analyse : on retombe simplement sur le comportement lexical.
+      PORTEES.set(file, null);
+    }
+  }
+  return PORTEES.get(file);
+}
+
+/**
+ * Gradue un constat d'injection selon l'origine des valeurs concatenees.
+ *
+ * Le motif seul ne distingue pas `req.query.id` d'une constante du module.
+ * Les deux produisaient un constat critique ; le second est un faux positif,
+ * et les faux positifs critiques sont ceux qui coutent le plus cher — ce sont
+ * eux qui poussent a ignorer la categorie entiere.
+ *
+ * Retourne `null` quand toutes les valeurs sont litterales : il n'y a alors
+ * rien a signaler.
+ */
+function graduerParLeFlux(file, rule, match, index, position) {
+  if (file.family !== 'js' && file.family !== 'python') return {};
+  const portees = porteesDe(file);
+  if (!portees) return {};
+
+  // Le motif d'injection est paresseux : il s'arrete au premier signe de
+  // concatenation et tronque l'identifiant. On elargit donc a l'instruction.
+  const debut = match.index;
+  const finInstruction = (() => {
+    for (let i = debut; i < file.content.length; i++) {
+      const c = file.content[i];
+      if (c === ';' || c === '\n') return i;
+    }
+    return file.content.length;
+  })();
+
+  // Les identifiants sont cherches dans le code *masque* : les mots-cles SQL
+  // vivent a l'interieur de la chaine et ne doivent pas etre resolus.
+  const masque = maskedSource(file).slice(debut, finInstruction);
+  const identifiants = [];
+  for (const m of matches(masque, /(?<![.\w$])[A-Za-z_$][\w$]*/g)) {
+    identifiants.push({ nom: m[0], offset: debut + m.index });
+  }
+  if (identifiants.length === 0) return {};
+
+  const origines = identifiants
+    .map(({ nom, offset }) => {
+      const liaison = portees.resoudre(nom, offset);
+      return liaison ? portees.origine(nom, offset) : null;
+    })
+    .filter(Boolean);
+
+  if (origines.length === 0) return {};
+  if (origines.every((o) => o === ORIGINES.litteral)) return null;
+
+  if (origines.includes(ORIGINES.externe)) {
+    return {
+      confidence: 'firm',
+      message: `${rule.message} La valeur provient d'une entree externe (requete, environnement ou URL) : le chemin est complet.`,
+    };
+  }
+
+  if (origines.includes(ORIGINES.parametre)) {
+    return {
+      confidence: 'tentative',
+      message: `${rule.message} La valeur est un parametre de fonction : verifiez ce que transmettent les appelants.`,
+    };
+  }
+
+  return {};
 }
 
 /** Un fichier de test ou un exemple abaisse la severite d'un cran. */

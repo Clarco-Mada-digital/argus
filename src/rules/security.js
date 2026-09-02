@@ -12,6 +12,9 @@ export const SECURITY_RULES = [
   // ---------------------------------------------------------------- Injection
   {
     id: 'SEC-EVAL',
+    // La gravite depend de l'origine de la valeur concatenee : le flux
+    // de donnees est consulte quand le fichier est du JavaScript.
+    fluxDeDonnees: true,
     title: 'Execution de code dynamique (eval)',
     severity: 'high',
     families: ['js', 'python', 'php', 'ruby'],
@@ -58,6 +61,9 @@ export const SECURITY_RULES = [
   },
   {
     id: 'SEC-SQL-CONCAT',
+    // La gravite depend de l'origine de la valeur concatenee : le flux
+    // de donnees est consulte quand le fichier est du JavaScript.
+    fluxDeDonnees: true,
     title: 'Requete SQL construite par concatenation',
     severity: 'critical',
     families: ['*'],
@@ -86,6 +92,9 @@ export const SECURITY_RULES = [
   },
   {
     id: 'SEC-NOSQL-WHERE',
+    // La gravite depend de l'origine de la valeur concatenee : le flux
+    // de donnees est consulte quand le fichier est du JavaScript.
+    fluxDeDonnees: true,
     title: 'Operateur $where MongoDB',
     severity: 'high',
     families: ['js', 'python'],
@@ -329,6 +338,9 @@ export const SECURITY_RULES = [
   // ------------------------------------------------------------- Chemins/SSRF
   {
     id: 'SEC-PATH-TRAVERSAL',
+    // La gravite depend de l'origine de la valeur concatenee : le flux
+    // de donnees est consulte quand le fichier est du JavaScript.
+    fluxDeDonnees: true,
     title: 'Chemin de fichier construit depuis une entree',
     severity: 'high',
     families: ['*'],
@@ -340,6 +352,9 @@ export const SECURITY_RULES = [
   },
   {
     id: 'SEC-SSRF',
+    // La gravite depend de l'origine de la valeur concatenee : le flux
+    // de donnees est consulte quand le fichier est du JavaScript.
+    fluxDeDonnees: true,
     title: 'Requete sortante vers une URL fournie',
     severity: 'high',
     families: ['*'],

@@ -49,7 +49,7 @@
 <div class="zone zone-large hero">
   <div class="hero-grille">
     <div>
-      <p class="etiquette"><span class="pastille"></span> <b>Zéro dépendance</b> · 20 frameworks · 214 tests</p>
+      <p class="etiquette"><span class="pastille"></span> <b>Zéro dépendance</b> · 20 frameworks · 230 tests</p>
       <h1>Il voit ce que<br>vous ne voyez plus.<span class="fin">Une commande suffit.</span></h1>
       <p class="accroche">
         Secrets versionnés, liens qui ne mènent nulle part, code que plus personne n'appelle,
@@ -218,6 +218,28 @@
     <div class="fw"><div class="fw-nom">Electron</div><p><code>nodeIntegration</code>, <code>contextIsolation: false</code>, <code>webSecurity: false</code>. Le renderer affiche du HTML ; s'il a aussi Node, toute XSS devient une exécution de code.</p></div>
     <div class="fw"><div class="fw-nom">Kotlin · Swift natifs</div><p>Un <code>checkServerTrusted</code> au corps vide ne lève jamais d'exception : par contrat, cela signifie « certificat valide ». Tous le sont donc. Plus <code>UserDefaults</code>, <code>SharedPreferences</code>, trousseau trop accessible.</p></div>
     <div class="fw"><div class="fw-nom">Manifestes Android · iOS</div><p>Règle <strong>transverse</strong> sur les manifestes natifs, quel que soit l'outil qui les a générés : trafic en clair, <code>debuggable</code>, <code>allowBackup</code>, ATS désactivé. Couvre aussi Capacitor, Ionic, Kotlin et Swift.</p></div>
+
+    <div class="encart">
+      <h4>L'origine de la valeur, pas seulement le motif</h4>
+      <p>
+        <code>db.query('… WHERE id = ' + identifiant)</code> est une faille si
+        <code>identifiant</code> vient de la requête, et n'est rien du tout si c'est une
+        constante du module. Les deux remontaient en <strong>critique</strong> — et un faux
+        positif critique est le plus coûteux de tous : c'est celui qui fait ignorer la
+        catégorie entière.
+      </p>
+      <p>
+        Argus suit désormais les portées et l'origine des valeurs, en JavaScript/TypeScript et
+        en Python. Une constante littérale ne remonte plus ; une valeur venue de l'extérieur
+        est signalée avec certitude ; un paramètre de fonction est signalé, mais en confiance
+        réduite — son appelant est inconnu. Le masquage par paramètre, la réaffectation et la
+        déstructuration sont pris en compte.
+      </p>
+      <p>
+        Ce n'est <em>pas</em> un analyseur syntaxique complet, et c'est délibéré : aucun arbre,
+        pas de précédence, pas de suivi inter-fonctions. Une seule question, bien traitée.
+      </p>
+    </div>
 
     <div class="encart">
       <h4>Les monorepos, application par application</h4>

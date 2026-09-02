@@ -449,6 +449,30 @@ Flutter, Capacitor, Ionic, Kotlin ou Swift natifs.
 
 ---
 
+## Origine des valeurs — graduation des injections
+
+Cinq règles consultent le flux de données quand le fichier est du JavaScript,
+du TypeScript ou du Python : `SEC-SQL-CONCAT`, `SEC-NOSQL-WHERE`,
+`SEC-PATH-TRAVERSAL`, `SEC-SSRF`, `SEC-EVAL`.
+
+| Origine de la valeur concaténée | Effet |
+|---|---|
+| Constante littérale | **aucun constat** |
+| Entrée externe (`req.query`, `request.GET`, `process.argv`, `location.hash`…) | confiance `firm`, message précisant le chemin |
+| Paramètre de fonction | confiance `tentative` — l'appelant est inconnu |
+| Indéterminée | comportement inchangé |
+
+Sont correctement traités : le masquage d'une constante par un paramètre, la
+réaffectation (`let x = 'sûr'` puis `x = req.body.x`), et la déstructuration
+(`const { slug } = req.params`).
+
+Ce n'est pas un analyseur syntaxique complet : aucun arbre n'est construit, la
+précédence est ignorée, et il n'y a pas de suivi inter-fichiers ni
+inter-fonctions. En cas de source illisible, l'analyse retombe silencieusement
+sur le comportement lexical d'avant.
+
+---
+
 ## Diagnostic interne — `ARGUS-*`
 
 | Règle | Gravité | Détecte |

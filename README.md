@@ -228,6 +228,53 @@ Les imports sont résolus selon les conventions de chaque écosystème : **PSR-4
 
 Pour ajouter un framework : un module dans `src/rules/frameworks/`, référencé dans son index.
 
+## L'origine de la valeur, pas seulement le motif
+
+Le motif « concaténation dans une requête SQL » ne distingue pas ceci :
+
+```js
+const identifiant = requete.query.id;                                  // faille
+db.query('SELECT * FROM users WHERE id = ' + identifiant);
+
+const identifiant = 'admin';                                           // rien du tout
+db.query('SELECT * FROM users WHERE role = ' + identifiant);
+```
+
+Les deux remontaient en **critique**. Le second est un faux positif — et un faux positif critique est le plus coûteux de tous : c'est celui qui pousse à ignorer la catégorie entière.
+
+Argus analyse maintenant les **portées et l'origine des valeurs**, en JavaScript/TypeScript et en Python :
+
+| Origine | Ce qui est signalé |
+|---|---|
+| Constante littérale | **rien** |
+| Entrée externe (`req.query`, `request.GET`, `process.argv`, `location.hash`…) | gravité pleine, confiance **firm**, message explicite |
+| Paramètre de fonction | signalé, confiance **tentative** — l'appelant est inconnu |
+| Indéterminée | comportement inchangé |
+
+Trois cas que le lexical ne pouvait pas voir sont désormais corrects :
+
+```js
+const table = 'users';
+function lister(table) { db.query('SELECT * FROM ' + table); }   // le paramètre masque la constante
+
+let critere = 'defaut';
+critere = requete.body.critere;                                   // réaffectation
+db.query('… WHERE nom = ' + critere);
+
+const { slug } = requete.params;                                  // déstructuration
+db.query('… WHERE slug = ' + slug);
+```
+
+### Ce que ce n'est pas
+
+Pas un analyseur syntaxique complet, et volontairement. Aucun arbre n'est construit, la précédence des opérateurs est ignorée, il n'y a ni suivi inter-fichiers ni inter-fonctions. L'objectif est étroit : répondre à *« d'où vient la valeur de cet identifiant, ici ? »* — et y répondre juste. Chaque ligne de grammaire en trop est une ligne qui peut se tromper.
+
+Côté Python, il n'y a même pas de lexeur : le langage n'ayant pas de portée de bloc, l'indentation suffit.
+
+Le coût est nul en pratique : l'analyse ne tourne que sur les fichiers où une règle sensible au flux a déjà déclenché.
+
+Mesuré sur des fixtures conçues pour piéger l'approche lexicale — **1 faux positif éliminé sur 5 constats, 0 détection perdue** sur les projets existants.
+
 ## Monorepos
 
 Un dépôt qui contient plusieurs applications n'était, en pratique, **pas analysé**. La détection ne lisait que le manifeste racine — lequel ne déclare le plus souvent qu'un orchestrateur (`turbo`, `nx`, `lerna`). Un dépôt Next.js + Expo se résumait à `node`, et aucune règle spécialisée ne s'activait.
