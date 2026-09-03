@@ -185,10 +185,33 @@ export function maskCommentsAndStrings(source, family = 'js', { keepStrings = fa
       let j = i + 1;
       // Dans un gabarit, `${…}` contient du vrai code : le neutraliser ferait
       // passer pour inutilisee toute variable seulement interpolee.
+      //
+      // Une f-string Python fait exactement la meme chose avec `{…}`. Sans
+      // cette symetrie, `f"Python {platform.python_version()}"` ne comptait
+      // pas comme un usage de `platform`, et l'import etait declare mort.
+      const fString = family === 'python' && /[fF]/.test(source[i - 1] || '');
       const holes = [];
       while (j < len) {
         if (source[j] === '\\') {
           j += 2;
+          continue;
+        }
+        // `{{` est une accolade litterale, pas une interpolation.
+        if (fString && source[j] === '{' && source[j + 1] === '{') {
+          j += 2;
+          continue;
+        }
+        if (fString && source[j] === '{') {
+          const start = j + 1;
+          let depth = 1;
+          j++;
+          while (j < len && depth > 0) {
+            if (source[j] === '{') depth++;
+            else if (source[j] === '}') depth--;
+            if (depth === 0) break;
+            j++;
+          }
+          holes.push([start, j]);
           continue;
         }
         if (quote === '`' && source[j] === '$' && source[j + 1] === '{') {

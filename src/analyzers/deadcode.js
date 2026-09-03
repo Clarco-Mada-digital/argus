@@ -257,10 +257,56 @@ function detectUnusedImports(file, report) {
   const masked = maskedSource(file);
   const index = lineIndexFor(file);
 
+  /**
+   * Un fichier d'agregation ne consomme pas ce qu'il importe : il le
+   * re-expose. C'est toute sa fonction, et « importe mais jamais utilise »
+   * y decrit precisement le comportement voulu.
+   *
+   * La distinction ne se voyait pas tant que les imports multi-lignes etaient
+   * mal lus : les corriger a rendu visible une famille de faux positifs qui
+   * dormait derriere un bug.
+   */
+  const estUneFacade =
+    /(^|\/)(?:__init__\.py|compat\.py|index\.(?:js|ts|mjs|jsx|tsx))$/.test(file.relativePath) ||
+    /^\s*__all__\s*=/m.test(file.content);
+
+  /**
+   * Lignes appartenant a un bloc `if TYPE_CHECKING:`.
+   *
+   * Ces imports n'existent que pour l'annotateur : Python ne les evalue
+   * jamais a l'execution, et ils sont le plus souvent references dans des
+   * annotations sous forme de chaine — que le masquage lexical efface, si
+   * bien qu'ils paraissaient tous inutilises.
+   */
+  const typage = new Set();
+  if (file.family === 'python') {
+    const lignes = file.lines;
+    for (let i = 0; i < lignes.length; i++) {
+      if (!/^(\s*)if\s+(?:typing\.)?TYPE_CHECKING\s*:/.test(lignes[i])) continue;
+      const marge = indentOf(lignes[i]);
+      for (let k = i + 1; k < lignes.length; k++) {
+        if (!lignes[k].trim()) continue;
+        if (indentOf(lignes[k]) <= marge) break;
+        typage.add(k + 1);
+      }
+    }
+  }
+
   for (const entry of imports) {
     // Un re-export n'a pas a etre reference localement : c'est sa raison d'etre.
     if (['side-effect', 'dynamic', 'reexport', 'reexport-all'].includes(entry.type)) continue;
-    for (const name of entry.names) {
+    if (estUneFacade) continue;
+    // `from __future__ import annotations` est une directive de compilation.
+    // Elle n'est referencee nulle part, et c'est normal.
+    if (entry.source === '__future__') continue;
+    // `# noqa: F401` dit exactement « cet import est inutilise, et c'est
+    // voulu ». C'est la meme regle que la notre, deja repondue par l'auteur.
+    if (/#\s*noqa(?::[^\n]*\bF401\b|\s*$)/.test(index.textOfLine(entry.line))) continue;
+    if (typage.has(entry.line)) continue;
+
+    // Le nom a chercher est celui qui est *lie* dans le fichier : avec un
+    // alias, ce n'est pas le nom importe.
+    for (const name of entry.bindings ?? entry.names) {
       if (!name || name.length < 2) continue;
       const uses = countIdentifier(masked, name);
       // 1 occurrence = la ligne d'import elle-meme.

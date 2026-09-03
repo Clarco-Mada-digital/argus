@@ -86,6 +86,8 @@ function collectRoutes(context) {
     }
   }
 
+  context.inclusionsHorsDepot = monterLesInclusionsDjango(routes);
+
   // Deduplication exacte (meme methode + meme motif + meme fichier).
   const seen = new Set();
   return routes.filter((route) => {
@@ -94,6 +96,73 @@ function collectRoutes(context) {
     seen.add(key);
     return true;
   });
+}
+
+/**
+ * Propage le prefixe d'un `include()` aux routes du fichier inclus.
+ *
+ * Une route declaree dans le `urls.py` d'une application Django est
+ * *relative* au point ou l'application est montee. Sans cette passe, cinq
+ * applications montees sous cinq prefixes differents declaraient toutes la
+ * route « / », et l'outil concluait a « la route / declaree 5 fois » puis a
+ * du code mort. Le projet etait correct ; c'est la lecture qui ne l'etait pas.
+ *
+ * Les montages imbriques sont resolus par passes successives, bornees : un
+ * `include()` circulaire ne doit pas faire tourner le scan indefiniment.
+ */
+function monterLesInclusionsDjango(routes) {
+  let horsDepot = false;
+  const parFichier = new Map();
+  for (const route of routes) {
+    if (route.framework !== 'django') continue;
+    if (!parFichier.has(route.file)) parFichier.set(route.file, []);
+    parFichier.get(route.file).push(route);
+  }
+  if (parFichier.size === 0) return false;
+
+  const cible = (module) => {
+    // `comptes.urls` designe `comptes/urls.py`, ou qu'il se trouve dans
+    // l'arborescence : un projet peut ranger ses applications sous `apps/`.
+    const chemin = `${module.replace(/\./g, '/')}.py`;
+    for (const fichier of parFichier.keys()) {
+      if (fichier === chemin || fichier.endsWith(`/${chemin}`)) return fichier;
+    }
+    return null;
+  };
+
+  const joindre = (prefixe, motif) =>
+    `/${`${prefixe}/${motif}`.split('/').filter(Boolean).join('/')}`;
+
+  // Une profondeur de montage superieure a huit ne se rencontre pas ; la borne
+  // protege surtout d'un `include()` qui se referme sur lui-meme.
+  for (let passe = 0; passe < 8; passe++) {
+    let change = false;
+
+    for (const montage of routes) {
+      if (montage.kind !== 'mount' || montage.framework !== 'django') continue;
+      if (montage.monte) continue;
+      const fichier = cible(montage.data?.include || '');
+      if (!fichier || fichier === montage.file) {
+        // `include("allauth.urls")` : le fichier vit dans une dependance
+        // installee, pas dans le depot. Ses routes nommees existent bel et
+        // bien, mais nous ne pouvons pas les voir — et un outil qui ne voit
+        // pas doit se taire plutot que d'accuser.
+        if (montage.data?.include) horsDepot = true;
+        continue;
+      }
+
+      montage.monte = true;
+      change = true;
+      for (const route of parFichier.get(fichier)) {
+        route.pattern = joindre(montage.pattern, route.pattern);
+        if (route.regex) route.regex = new RegExp(`^${route.pattern.replace(/<[^>]+>/g, '[^/]+')}/?$`);
+      }
+    }
+
+    if (!change) break;
+  }
+
+  return horsDepot;
 }
 
 function collectLinks(context) {
@@ -226,6 +295,9 @@ function detectBrokenLinks(links, routes, assets, context, report) {
     if (link.external) continue;
     if (link.kind === 'named') {
       // url_for('vue') / route('nom') : on verifie le nom, pas le chemin.
+      // Un `include()` vers une application installee rend le tableau des
+      // noms incomplet : tout nom absent devient alors indecidable.
+      if (context.inclusionsHorsDepot) continue;
       if (namedRoutes.size > 0 && !namedRoutes.has(link.target) && !link.target.includes('.')) {
         maybeReport(link, 'ROUTE-UNKNOWN-NAME', 'Route nommee inconnue',
           `Aucune route nommee "${link.target}" n'a ete trouvee.`,

@@ -20,7 +20,13 @@ test('django : les routes sont extraites, y compris via include()', () => {
   const chemins = resultat.routes.map((r) => r.pattern);
   assert.ok(chemins.includes('/'), 'route racine');
   assert.ok(chemins.includes('/articles/<int:pk>'), 'segment type');
-  assert.ok(chemins.includes('/archives'), 'route d\'une application incluse');
+  // Le prefixe du montage compte : `blog/urls.py` est inclus sous `blog/`,
+  // donc sa route `archives` repond en `/blog/archives`. Ce test attendait
+  // auparavant `/archives`, c'est-a-dire l'oubli du prefixe — et c'est cet
+  // oubli qui faisait conclure a « la route / declaree cinq fois » sur un
+  // projet montant cinq applications.
+  assert.ok(chemins.includes('/blog/archives'), 'route d\'une application incluse, prefixe compris');
+  assert.ok(!chemins.includes('/archives'), 'la forme sans prefixe ne repond a rien');
   assert.ok(chemins.includes('/Contact'), 'route a corriger');
   assert.ok(regles.has('ROUTE-UPPERCASE'), 'majuscule dans l\'URL non signalee');
 });

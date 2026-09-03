@@ -138,7 +138,7 @@ export function extractImports(file) {
    * documentation, pas une dependance : un exemple JSDoc ou un extrait dans un
    * message d'aide ne doit pas etre compte comme un import du fichier.
    */
-  const estDocumentation = (offset) => file.family === 'js' && isQuoted(file, offset);
+  const estDocumentation = (offset) => isQuoted(file, offset);
 
   extracteur(file.content, lineIndexFor(file), imports, estDocumentation);
   return imports;
@@ -180,21 +180,85 @@ function extraireImportsJs(raw, index, imports, estDocumentation) {
 }
 
 /** Imports Python : `from x import a, b` et `import x`. */
-function extraireImportsPython(raw, index, imports) {
+/**
+ * L'offset du mot-cle, pas celui de la ligne.
+ *
+ * Le masquage remplace le contenu des chaines par des espaces mais laisse
+ * l'indentation intacte — elle l'etait deja. Interroger la position de la
+ * ligne revenait donc a comparer une espace a une espace, et repondait
+ * toujours « ce n'est pas dans une chaine ».
+ */
+function debutDuMotCle(match) {
+  return match.index + Math.max(0, match[0].search(/\S/));
+}
+
+function extraireImportsPython(raw, index, imports, estDocumentation) {
   const nomsDe = (liste) =>
     liste
       .split(',')
-      .map((n) => n.trim().split(/\s+as\s+/)[0].replace(/[()]/g, ''))
-      .filter(Boolean);
+      // Les parentheses tombent *avant* la mise au propre : les retirer apres
+      // laissait le saut de ligne d'un import multi-lignes colle au nom, et
+      // « \n    Decimal » ne ressemble a aucun identifiant du fichier.
+      .map((n) => n.replace(/[()]/g, '').trim().split(/\s+as\s+/)[0].trim())
+      .filter((n) => /^[\w.*]+$/.test(n));
 
-  for (const match of matches(raw, /^\s*from\s+([\w.]+)\s+import\s+(.+)$/gm)) {
-    imports.push({ names: nomsDe(match[2]), source: match[1], line: index.lineOf(match.index), type: 'from' });
+  /**
+   * Les noms *lies localement*, qui different des noms importes des qu'un
+   * alias entre en jeu : `from x import Timeout as TimeoutSauce` ne definit
+   * pas `Timeout` dans le fichier, il definit `TimeoutSauce`. On cherchait le
+   * premier, absent par construction, et on concluait a un import inutilise —
+   * sur la moitie des constats d'une bibliotheque reelle.
+   *
+   * Les deux listes coexistent parce qu'elles repondent a deux questions :
+   * `names` sert a retrouver le module cible, `bindings` a savoir si le
+   * fichier s'en sert.
+   */
+  const liaisonsDe = (liste) =>
+    liste
+      .split(',')
+      .map((n) => {
+        const propre = n.replace(/[()]/g, '').trim();
+        const alias = /\s+as\s+([\w.]+)\s*$/.exec(propre);
+        return (alias ? alias[1] : propre).trim();
+      })
+      .filter((n) => /^[\w.*]+$/.test(n));
+
+  // `[^\S\n]` = une espace ou une tabulation, jamais un saut de ligne. Ecrire
+  // `\s` ici laissait le motif traverser les lignes vides et avaler le bloc
+  // d'import entier : un constat portait litteralement sur le nom
+  // « io\n\n        import segno ». Le import etait pourtant bien utilise.
+  const HORIZONTAL = '[^\\S\\n]';
+
+  // `from x import (a,\n b)` : la parenthese autorise le retour a la ligne,
+  // et s'arreter au premier `$` perdait tous les noms sauf le premier — qui
+  // paraissaient alors inutilises.
+  // Un import cite dans une docstring est un exemple d'usage, pas une
+  // dependance du fichier. Flask en documente cinq de cette facon, et tous
+  // etaient comptes comme des imports inutilises.
+  for (const match of matches(raw, new RegExp(`^${HORIZONTAL}*from${HORIZONTAL}+([\\w.]+)${HORIZONTAL}+import${HORIZONTAL}+(\\([^)]*\\)|[^\\n]+)`, 'gm'))) {
+    if (estDocumentation(debutDuMotCle(match))) continue;
+    imports.push({
+      names: nomsDe(match[2]),
+      bindings: liaisonsDe(match[2]),
+      source: match[1],
+      line: index.lineOf(match.index),
+      type: 'from',
+    });
   }
 
-  for (const match of matches(raw, /^\s*import\s+([\w.,\s]+)$/gm)) {
-    for (const name of nomsDe(match[1])) {
-      imports.push({ names: [name], source: name, line: index.lineOf(match.index), type: 'import' });
-    }
+  for (const match of matches(raw, new RegExp(`^${HORIZONTAL}*import${HORIZONTAL}+([\\w.,]${HORIZONTAL}*(?:[\\w.,]${HORIZONTAL}*)*)$`, 'gm'))) {
+    if (estDocumentation(debutDuMotCle(match))) continue;
+    const noms = nomsDe(match[1]);
+    const liaisons = liaisonsDe(match[1]);
+    noms.forEach((name, rang) => {
+      imports.push({
+        names: [name],
+        bindings: [liaisons[rang] ?? name],
+        source: name,
+        line: index.lineOf(match.index),
+        type: 'import',
+      });
+    });
   }
 }
 

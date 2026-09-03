@@ -12,10 +12,38 @@ import { renderReport } from '../src/report/terminal.js';
  * signale ; chacun est fige ici.
  */
 
+/** Une migration telle que `makemigrations` l'ecrit. */
+const MIGRATION = [
+  'from django.db import migrations, models',
+  '',
+  '',
+  'class Migration(migrations.Migration):',
+  '    initial = True',
+  '    dependencies = [("auth", "0012_alter_user_first_name_max_length")]',
+  '    operations = [',
+  '        migrations.CreateModel(',
+  '            name="NOM",',
+  '            fields=[("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False))],',
+  '        ),',
+  '    ]',
+].join('\n');
+
 function projetDjango(fichiers) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'argus-terrain-'));
   fs.writeFileSync(path.join(dir, 'requirements.txt'), 'Django==5.2.6\n');
-  fs.writeFileSync(path.join(dir, 'manage.py'), 'import django\n');
+  fs.writeFileSync(
+    path.join(dir, 'manage.py'),
+    [
+      'import os',
+      'import sys',
+      '',
+      'if __name__ == "__main__":',
+      '    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "monsite.settings")',
+      '    from django.core.management import execute_from_command_line',
+      '',
+      '    execute_from_command_line(sys.argv)',
+    ].join('\n'),
+  );
 
   for (const [chemin, contenu] of Object.entries(fichiers)) {
     const complet = path.join(dir, chemin);
@@ -172,6 +200,9 @@ test('terrain : un constat critique n\'est jamais tronque', async () => {
 
   const dir = projetDjango({
     'page.html': bruit,
+    // argus-ignore SEC-SECRET-AWS-SECRET : la clef d'exemple de la
+    // documentation AWS, ici pour declencher un constat critique — c'est
+    // exactement ce que le test verifie.
     'monsite/secrets.py': 'AWS_SECRET_ACCESS_KEY = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"\n',
   });
 
@@ -263,4 +294,178 @@ test('terrain : un |safe sur une valeur n\'est pas un autoescape off global', as
   assert.equal(parFichier.get('moteur.py'), 'high', 'le contournement global couvre tout');
 
   fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('terrain : un projet Django multi-applications n\'est pas du code mort', async () => {
+  // Le tableau du paragraphe 4 du releve, reconstruit d'un bloc : espaces de
+  // noms d'URL, include(), imports en corps de fonction, imports multi-lignes
+  // et migrations generees. Chez eux, 196 + 12 constats de code mort, aucun
+  // exploitable.
+  const dir = projetDjango({
+    'monsite/urls.py': [
+      'from django.urls import include, path',
+      '',
+      'urlpatterns = [',
+      '    path("", include("comptes.urls")),',
+      '    path("factures/", include("factures.urls")),',
+      ']',
+    ].join('\n'),
+
+    'comptes/urls.py': [
+      'from django.urls import path',
+      'from . import views',
+      '',
+      'app_name = "comptes"',
+      '',
+      'urlpatterns = [',
+      '    path("", views.accueil, name="accueil"),',
+      '    path("mot-de-passe/", views.changer, name="change_password_obligatoire"),',
+      ']',
+    ].join('\n'),
+
+    'factures/urls.py': [
+      'from django.urls import path',
+      'from . import views',
+      '',
+      'app_name = "factures"',
+      '',
+      'urlpatterns = [',
+      '    path("", views.liste, name="liste"),',
+      ']',
+    ].join('\n'),
+
+    'comptes/views.py': [
+      'import io',
+      '',
+      'from django.shortcuts import redirect, render',
+      '',
+      '',
+      'def accueil(request):',
+      '    return redirect("comptes:change_password_obligatoire")',
+      '',
+      '',
+      'def changer(request):',
+      '    # Import differe : casse un cycle avec le module de facturation.',
+      '    import segno',
+      '',
+      '    tampon = io.BytesIO()',
+      '    segno.make("x").save(tampon, kind="png")',
+      '    return render(request, "comptes/mot_de_passe.html")',
+    ].join('\n'),
+
+    'factures/views.py': [
+      'from decimal import (',
+      '    Decimal,',
+      '    ROUND_HALF_UP,',
+      ')',
+      '',
+      'from django.shortcuts import render',
+      '',
+      '',
+      'def liste(request):',
+      '    total = Decimal("1.005").quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)',
+      '    return render(request, "factures/liste.html", {"total": total})',
+    ].join('\n'),
+
+    'comptes/migrations/0001_initial.py': MIGRATION.replace(/NOM/g, 'Profil'),
+    'comptes/migrations/0002_reglage.py': MIGRATION.replace(/NOM/g, 'Reglage'),
+  });
+
+  const rapport = await scan(dir, { noHistory: true });
+  const parRegle = (id) => rapport.findings.filter((f) => f.ruleId === id);
+
+  assert.deepEqual(
+    parRegle('ROUTE-BROKEN-LINK').map((f) => f.snippet),
+    [],
+    'redirect("comptes:x") designe une route nommee, pas un chemin',
+  );
+  assert.deepEqual(
+    parRegle('ROUTE-DUPLICATE').map((f) => f.message),
+    [],
+    'deux applications montees sous deux prefixes ne declarent pas la meme route',
+  );
+  assert.deepEqual(
+    parRegle('DEAD-IMPORT').map((f) => `${f.file}:${f.line}`),
+    [],
+    'import en corps de fonction et import multi-lignes sont vus',
+  );
+  assert.deepEqual(
+    parRegle('QUAL-DUPLICATION').map((f) => f.file),
+    [],
+    'les migrations sont ecrites par makemigrations',
+  );
+
+  // Le prefixe du montage doit avoir ete propage, sinon la comparaison
+  // ci-dessus passerait pour la mauvaise raison.
+  const factures = rapport.routes.find((r) => r.handler === 'factures:liste');
+  assert.equal(factures?.pattern, '/factures');
+
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('terrain : les six facons d\'importer sans que ce soit mort', async () => {
+  // Sur `requests` et `flask`, 90 constats d'import mort. Zero etait fonde.
+  // Chaque ligne ci-dessous represente une des familles rencontrees ; la
+  // derniere, elle, doit toujours remonter.
+  const dir = projetDjango({
+    'lib/formes.py': [
+      'from __future__ import annotations',
+      '',
+      'from typing import TYPE_CHECKING',
+      '',
+      'import platform',
+      'import json  # noqa: F401',
+      '',
+      'from urllib3.util import Timeout as TimeoutSauce',
+      'from decimal import (',
+      '    Decimal,',
+      '    ROUND_HALF_UP,',
+      ')',
+      '',
+      'import csv',
+      '',
+      'if TYPE_CHECKING:',
+      '    from .models import Facture',
+      '',
+      '',
+      'def version() -> str:',
+      '    """Exemple d\'usage :',
+      '',
+      '    .. code-block:: python',
+      '',
+      '        import gevent',
+      '        from flask import copy_current_request_context',
+      '    """',
+      '    delai = TimeoutSauce(connect=1)',
+      '    montant = Decimal("1.005").quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)',
+      '    return f"Python {platform.python_version()} {delai} {montant}"',
+      '',
+      '',
+      'def total(facture: "Facture") -> int:',
+      '    return facture.total',
+    ].join('\n'),
+  });
+
+  const rapport = await scan(dir, { noHistory: true });
+  const morts = rapport.findings
+    .filter((f) => f.ruleId === 'DEAD-IMPORT')
+    .map((f) => f.data.symbol);
+
+  // `csv` n'est utilise nulle part : c'est le seul vrai constat du fichier.
+  assert.deepEqual(morts, ['csv'], `constats inattendus : ${morts.join(', ')}`);
+
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('terrain : une interpolation Python compte comme un usage', async () => {
+  // Le masquage effacait la f-string entiere, gabarits JavaScript exceptes.
+  // `f"{platform.python_version()}"` ne comptait donc pas comme un usage.
+  const { maskCommentsAndStrings } = await import('../src/core/scan.js');
+
+  const source = 'x = f"Python {platform.python_version()} et {{litteral}}"';
+  const masque = maskCommentsAndStrings(source, 'python');
+
+  assert.ok(masque.includes('platform.python_version()'), 'le code interpole survit');
+  assert.ok(!masque.includes('Python '), 'le texte litteral est bien efface');
+  assert.ok(!masque.includes('litteral'), 'une accolade doublee est un caractere, pas du code');
 });

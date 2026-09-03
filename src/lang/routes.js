@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { isQuoted, lineIndexFor, matches } from '../core/scan.js';
+import { dansUnCommentaire, isQuoted, lineIndexFor, matches } from '../core/scan.js';
 
 /**
  * Extraction des routes declarees, tous frameworks confondus.
@@ -197,16 +197,34 @@ export const ROUTE_EXTRACTORS = [
       if (!/urls?\.py$/.test(file.relativePath) && !/urlpatterns/.test(file.content)) return [];
       const routes = [];
       const index = lineIndexFor(file);
-      for (const match of matches(file.content, /\b(?:path|re_path|url)\s*\(\s*r?['"]([^'"]*)['"]\s*,\s*([\w.]+)/g)) {
+
+      // `app_name` definit l'espace de noms de tout le fichier. Sans lui,
+      // `redirect("comptes:mot_de_passe")` ne correspondait a aucune route
+      // connue et etait signale comme lien mort — au rang le plus grave, sur
+      // la facon la plus courante de nommer une URL en Django.
+      const espace = /^\s*app_name\s*=\s*['"]([\w.]+)['"]/m.exec(file.content)?.[1] || null;
+
+      // Chaque declaration, avec ce qui la suit jusqu'a la parenthese
+      // fermante : c'est la qu'on trouve `name=` et `include(...)`.
+      for (const match of matches(file.content, /\b(?:path|re_path|url)\s*\(\s*r?['"]([^'"]*)['"]\s*,\s*([^\n]*)/g)) {
+        const reste = match[2];
+        const inclusion = /\binclude\s*\(\s*(?:['"]([\w.]+)['"]|([\w.]+))/.exec(reste);
+        const nom = /\bname\s*=\s*['"]([\w.-]+)['"]/.exec(reste)?.[1] || null;
+
         routes.push(
           makeRoute({
             method: 'ALL',
             pattern: `/${match[1].replace(/^\^|\$$/g, '')}`,
-            kind: 'server',
+            // `include()` monte un autre fichier d'URL sous un prefixe ; ce
+            // n'est pas une route. Les compter comme telles faisait conclure
+            // a « la route / declaree 5 fois » sur un projet ou cinq
+            // applications sont montees a des endroits differents.
+            kind: inclusion ? 'mount' : 'server',
             framework: 'django',
             file,
             line: index.lineOf(match.index),
-            handler: match[2],
+            handler: nom ? (espace ? `${espace}:${nom}` : nom) : /^[\w.]+/.exec(reste)?.[0] || null,
+            data: inclusion ? { include: inclusion[1] || inclusion[2] } : undefined,
           }),
         );
       }
@@ -435,7 +453,7 @@ export function fileToRoutePattern(relative, framework) {
   return normalized || '/';
 }
 
-function makeRoute({ method, pattern, kind, framework, file, line, handler = null, mount = false }) {
+function makeRoute({ method, pattern, kind, framework, file, line, handler = null, mount = false, data = null }) {
   const normalized = normalizeRoute(pattern);
   return {
     method: method || 'ALL',
@@ -447,6 +465,9 @@ function makeRoute({ method, pattern, kind, framework, file, line, handler = nul
     line,
     handler,
     mount,
+    // Ce que l'extracteur a compris et que le motif seul ne dit pas : pour
+    // Django, le module vise par `include()`, que la passe de montage resout.
+    data,
     dynamic: /[:*{<]/.test(normalized),
     segments: normalized.split('/').filter(Boolean).length,
     regex: routeToRegExp(normalized),
@@ -503,6 +524,9 @@ function joinRoute(base, sub) {
   return normalizeRoute(`${left}/${right}`);
 }
 
+/** Une cible qui ne peut pas etre un chemin : ni barre oblique, ni extension. */
+const EST_UN_NOM_DE_ROUTE = /^[\w-]+:[\w.-]+$|^[\w-]+$/;
+
 /** Extrait les liens/navigations sortants d'un fichier. */
 export function extractLinks(file) {
   const links = [];
@@ -525,11 +549,16 @@ export function extractLinks(file) {
 
   // Les helpers de route nommee appartiennent aux ecosystemes serveur.
   // En JavaScript, `route('quelque chose')` designe le plus souvent autre chose.
-  if (['python', 'php', 'ruby', 'markup'].includes(file.family)) {
+  const familleServeur = ['python', 'php', 'ruby', 'markup'].includes(file.family);
+  if (familleServeur) {
     patterns.push(
       { re: /\burl_for\s*\(\s*["']([^"']+)["']/g, kind: 'named' },
       { re: /\broute\s*\(\s*["']([^"']+)["']/g, kind: 'named' },
       { re: /\{\{\s*url\s*\(\s*['"]([^'"]+)['"]/g, kind: 'named' },
+      // Django : `reverse()`, `reverse_lazy()` et `{% url %}` designent
+      // toujours un nom de route, jamais un chemin.
+      { re: /\breverse(?:_lazy)?\s*\(\s*["']([^"']+)["']/g, kind: 'named' },
+      { re: /\{%\s*url\s+['"]([^'"]+)['"]/g, kind: 'named' },
     );
   }
 
@@ -542,9 +571,17 @@ export function extractLinks(file) {
       // Un attribut HTML ecrit a l'interieur d'une chaine JavaScript est de la
       // documentation ou un gabarit d'outil, pas un lien de l'application.
       if (markupKinds.has(kind) && file.family === 'js' && isQuoted(file, match.index)) continue;
+      // Un lien cite dans un commentaire est un exemple, pas une navigation :
+      // l'exemple qui documente cette regle-ci se signalait lui-meme.
+      if (dansUnCommentaire(file, match.index)) continue;
       links.push({
         target: target.trim(),
-        kind,
+        // `redirect()` accepte en Django un chemin *ou* un nom de vue. Un
+        // nom d'espace (`comptes:accueil`) ne peut etre qu'un nom, et une
+        // cible sans barre oblique ni point non plus.
+        kind: kind === 'redirect' && familleServeur && EST_UN_NOM_DE_ROUTE.test(target.trim())
+          ? 'named'
+          : kind,
         file: file.relativePath,
         line: index.lineOf(match.index),
         external: /^(https?:)?\/\//i.test(target) || /^(mailto|tel|sms|ftp|data|javascript|blob):/i.test(target),
