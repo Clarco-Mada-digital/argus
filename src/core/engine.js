@@ -107,6 +107,11 @@ export class Engine {
         files: files.length,
         analyzed: context.sources().length,
         skipped,
+        // Les fichiers produits par un outil sont lus mais ecartes regle par
+        // regle. Sans ce compte, un CSS compile par Tailwind disparaissait du
+        // rapport sans que rien ne dise pourquoi — et un silence inexplique
+        // ressemble a un oubli.
+        generes: context.sources().filter((f) => f.isGenerated).length,
         totalBytes,
         truncated,
         frameworks: context.frameworks,

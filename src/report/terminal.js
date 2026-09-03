@@ -147,7 +147,12 @@ function renderHeader(result) {
     `${color.bold(color.cyan('  ARGUS'))} ${color.dim('· analyse de projet')}`,
     color.dim(`  ${result.root}`),
     '',
-    `  ${color.dim('Fichiers')}      ${project.analyzed} analyses ${color.dim(`(${project.files} indexes, ${project.skipped} ignores)`)}`,
+    `  ${color.dim('Fichiers')}      ${project.analyzed} analyses ` +
+      color.dim(
+        `(${project.files} indexes, ${project.skipped} ignores` +
+          (project.generes > 0 ? `, ${project.generes} genere${project.generes > 1 ? 's' : ''}` : '') +
+          ')',
+      ),
     project.description ? `  ${color.dim('Projet')}        ${identite}` : null,
     ...renderSousProjets(project),
     stack ? `  ${color.dim('Langages')}      ${stack}` : null,
