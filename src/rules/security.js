@@ -160,6 +160,32 @@ export const SECURITY_RULES = [
     raw: true,
     message: 'L\'echappement automatique du moteur de template est contourne.',
     suggestion: 'Ne desactivez l\'echappement que sur du contenu que vous avez vous-meme assaini.',
+    /**
+     * Tous les `|safe` ne se valent pas, et un rang uniforme les rend tous
+     * ignorables. Une equipe l'a dit sans detour : « un high qu'on apprend a
+     * ignorer protege moins qu'un medium qu'on lit. »
+     *
+     * Ce qui reste `high` est le contournement *global* — `autoescape=False`
+     * couvre tout un bloc et rien n'en sort. Un filtre pose sur une seule
+     * valeur devient `medium` : c'est une question a poser sur l'origine de
+     * la valeur, pas un verdict. Le cas reellement dangereux, l'interpolation
+     * dans un `<script>`, a sa propre regle et reste au rang le plus haut.
+     */
+    graduerParLUsage: ({ ligne }) => {
+      if (/autoescape\s*=\s*False|@php\s*echo/.test(ligne)) return null;
+      return {
+        severity: 'medium',
+        message:
+          'L\'echappement automatique est contourne sur cette valeur. Le danger depend ' +
+          'entierement de son origine : du contenu redige par un utilisateur passe du HTML ' +
+          'arbitraire, du contenu produit par le code installe ne risque rien.',
+        suggestion:
+          'Remontez a la source de la valeur. Si elle vient d\'un formulaire, d\'une base ' +
+          'alimentee par des utilisateurs ou d\'un appel reseau, assainissez-la (bleach, ' +
+          'DOMPurify) plutot que de desactiver l\'echappement. Si elle vient du code, ' +
+          'un commentaire disant pourquoi evitera la question au prochain lecteur.',
+      };
+    },
     cwe: 'CWE-79',
   },
 
@@ -207,7 +233,34 @@ export const SECURITY_RULES = [
     suggestion: 'SHA-256+ pour l\'integrite ; bcrypt, scrypt ou Argon2id pour les mots de passe.',
     cwe: 'CWE-327',
     owasp: 'A02:2021 Cryptographic Failures',
-    ignoreIf: (line) => /etag|cache|checksum|gravatar|hashCode/i.test(line),
+    /**
+     * MD5 n'est un defaut que selon ce qu'on lui fait hacher.
+     *
+     * Une equipe s'en servait pour suffixer ses statiques (`?v=<empreinte>`) :
+     * ce n'est pas un usage de securite, et le signaler au meme rang qu'un
+     * mot de passe hache en MD5 apprend a ignorer la regle — donc a rater le
+     * mot de passe. On garde le constat, on le remet a sa place.
+     */
+    graduerParLUsage: ({ contexte }) => {
+      if (/mot_?de_?passe|password|passwd|secret|token|jeton|signature|hmac|credential|auth/i.test(contexte)) {
+        return null; // usage de securite : le rang par defaut s'applique
+      }
+      if (!/cache|etag|checksum|empreinte|fingerprint|version|revision|dedup|bust|gravatar|cle_?de_?cache/i.test(contexte)) {
+        return null;
+      }
+      return {
+        severity: 'low',
+        message:
+          'MD5/SHA-1 sont casses pour toute utilisation de securite. Le voisinage indique ici ' +
+          'une empreinte de cache ou d\'integrite non cryptographique, ou la collision ne donne ' +
+          'aucun pouvoir a un attaquant.',
+        suggestion:
+          'Si c\'est bien une empreinte de cache, rien d\'urgent — mais preferez sha256 ou une ' +
+          'fonction non cryptographique explicite (xxhash, blake3), qui dit l\'intention et evite ' +
+          'que le prochain lecteur reouvre la question.',
+      };
+    },
+    ignoreIf: (line) => /gravatar|hashCode/i.test(line),
   },
   {
     id: 'SEC-WEAK-CIPHER',

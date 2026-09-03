@@ -96,16 +96,20 @@ function scanPatterns(file, context, report, cache) {
         : {};
       if (flux === null) continue; // toutes les valeurs sont litterales
 
+      const usage = rule.graduerParLUsage
+        ? rule.graduerParLUsage({ ligne: lineText, contexte: contexteDeclaratif(index, position) }) || {}
+        : {};
+
       report({
         ruleId: rule.id,
-        severity: adjustSeverity(rule, file),
+        severity: usage.severity || adjustSeverity(rule, file),
         title: rule.title,
-        message: flux.message || rule.message,
+        message: usage.message || flux.message || rule.message,
         file: file.relativePath,
         line: position.line,
         column: position.column,
         snippet: lineText,
-        suggestion: rule.suggestion,
+        suggestion: usage.suggestion || rule.suggestion,
         confidence: file.isTest ? 'tentative' : flux.confidence || rule.confidence || 'firm',
         effort: rule.effort || 'rapide',
         docs: rule.cwe ? `https://cwe.mitre.org/data/definitions/${rule.cwe.replace('CWE-', '')}.html` : null,
@@ -114,6 +118,52 @@ function scanPatterns(file, context, report, cache) {
       });
     }
   }
+}
+
+/**
+ * Le voisinage declaratif d'une ligne, pour juger de l'intention.
+ *
+ * Certains motifs ne sont un defaut que selon l'usage qu'on en fait. MD5
+ * calculant une empreinte de cache et MD5 hachant un mot de passe s'ecrivent
+ * pareil ; ce qui les separe est le nom de la fonction qui les contient et le
+ * commentaire qui l'annonce — jamais la ligne elle-meme.
+ *
+ * On remonte jusqu'a la declaration englobante, en gardant ce qui la precede
+ * immediatement : une docstring ou un commentaire y dit souvent l'intention
+ * plus clairement que le code.
+ */
+const DECLARATION = /^\s*(?:async\s+)?(?:def|function|class|const|let|var|public|private|func|fn|sub)\b|^\s*[\w.$]+\s*[:=]\s*(?:async\s+)?(?:function|\()/;
+
+function contexteDeclaratif(index, position, portee = 14) {
+  const morceaux = [index.textOfLine(position.line)];
+
+  for (let ligne = position.line - 1; ligne > 0 && position.line - ligne <= portee; ligne--) {
+    const texte = index.textOfLine(ligne);
+    morceaux.push(texte);
+    if (DECLARATION.test(texte)) {
+      // Le commentaire d'intention precede la signature. On ne prend que des
+      // commentaires : du code, a cet endroit, appartient a la declaration
+      // *precedente* et parlerait d'autre chose.
+      for (let k = 1; k <= 3; k++) {
+        const avant = index.textOfLine(ligne - k);
+        if (!/^\s*(?:\/\/|\/\*|\*|#)/.test(avant)) break;
+        morceaux.push(avant);
+      }
+      break;
+    }
+  }
+
+  // En Python la docstring suit la signature. On s'arrete a la declaration
+  // suivante : sa signature parle d'une autre intention que celle-ci, et la
+  // laisser entrer inversait le verdict — un calcul d'etag heritait du
+  // « mot_de_passe » de la fonction d'apres.
+  for (let k = 1; k <= 3; k++) {
+    const apres = index.textOfLine(position.line + k);
+    if (DECLARATION.test(apres)) break;
+    morceaux.push(apres);
+  }
+
+  return morceaux.filter(Boolean).join('\n');
 }
 
 /**

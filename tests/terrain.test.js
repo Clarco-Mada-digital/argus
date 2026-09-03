@@ -213,3 +213,54 @@ test('terrain : le rapport dit sur quelle base la veille a conclu', async () => 
 
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test('terrain : MD5 d\'empreinte de cache n\'est pas MD5 de mot de passe', async () => {
+  // Ils s'en servaient pour suffixer leurs statiques. Signaler les deux au
+  // meme rang apprend a ignorer la regle — donc a rater le mot de passe.
+  const dir = projetDjango({
+    'core/statiques.py': [
+      'import hashlib',
+      '',
+      '',
+      'def empreinte_de_cache(chemin):',
+      '    \"\"\"Suffixe ?v=... pour invalider le cache navigateur.\"\"\"',
+      '    with open(chemin, "rb") as f:',
+      '        return hashlib.md5(f.read()).hexdigest()[:8]',
+      '',
+      '',
+      'def etag_du_fichier(contenu):',
+      '    return hashlib.md5(contenu).hexdigest()',
+      '',
+      '',
+      'def hacher_mot_de_passe(mot_de_passe):',
+      '    return hashlib.md5(mot_de_passe.encode()).hexdigest()',
+    ].join('\n'),
+  });
+
+  const rapport = await scan(dir, { noHistory: true });
+  const parLigne = new Map(
+    rapport.findings.filter((f) => f.ruleId === 'SEC-WEAK-HASH').map((f) => [f.line, f.severity]),
+  );
+
+  assert.equal(parLigne.get(7), 'low', 'empreinte de cache');
+  assert.equal(parLigne.get(11), 'low', 'etag');
+  assert.equal(parLigne.get(15), 'high', 'mot de passe : le rang ne bouge pas');
+
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('terrain : un |safe sur une valeur n\'est pas un autoescape off global', async () => {
+  const dir = projetDjango({
+    'gabarits/page.html': '<p>{{ contenu_utilisateur|safe }}</p>\n',
+    'monsite/moteur.py': 'env = Environment(autoescape=False)\n',
+  });
+
+  const rapport = await scan(dir, { noHistory: true });
+  const constats = rapport.findings.filter((f) => f.ruleId === 'SEC-TEMPLATE-AUTOESCAPE');
+  const parFichier = new Map(constats.map((f) => [path.basename(f.file), f.severity]));
+
+  assert.equal(parFichier.get('page.html'), 'medium', 'une valeur : une question, pas un verdict');
+  assert.equal(parFichier.get('moteur.py'), 'high', 'le contournement global couvre tout');
+
+  fs.rmSync(dir, { recursive: true, force: true });
+});
