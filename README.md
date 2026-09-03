@@ -308,6 +308,36 @@ L'échelle discrimine à nouveau, ce qui est le seul vrai test :
 
 Trois tests verrouillent les invariants : stabilité à densité égale, coût plancher d'une faille critique, et discrimination entre deux projets de même taille.
 
+## Le corpus : mesurer sur du code que je n'ai pas écrit
+
+C'était l'angle mort du projet, et il était structurel. J'écrivais une règle, **puis** la fixture qui la déclenche. Je mesurais donc si mes règles trouvent ce que j'avais mis là pour qu'elles le trouvent.
+
+`scripts/corpus.js` confronte Argus à neuf projets réels — Express, axios, requests, Flask, Django, Laravel, Vue, Tailwind, une application React — et compare au relevé de référence versionné.
+
+```bash
+node scripts/corpus.js              # écarts avec la référence
+node scripts/corpus.js --muettes    # règles qui ne se déclenchent jamais
+```
+
+Il ne cherche pas « le bon nombre de constats » — personne ne le connaît — mais les **ruptures** : une règle qui passe de 3 à 400, une règle qui disparaît, un plantage. Le workflow tourne sur toute pull request touchant aux règles.
+
+### Ce que la première exécution a trouvé
+
+Six défauts, **aucun** qu'une fixture aurait révélé :
+
+| Défaut | Conséquence |
+|---|---|
+| `stripJsonComments` prenait `"./unsafe/*"` pour un commentaire | **Tout `package.json` avec des exports génériques devenait illisible — en silence.** Aucune dépendance analysée, aucun framework reconnu, et un rapport d'apparence normale |
+| Les imports relatifs Python (`from .adapters`) résolus en `paquet/.adapters` | Le cœur d'une bibliothèque Python déclaré mort : 17 fichiers sur `requests` |
+| Pas de notion de **bibliothèque** | 70 exports de la surface publique de `requests` signalés comme morts. Une porte d'entrée ne s'ouvre pas depuis l'intérieur |
+| `example.com` traité comme une ressource en clair | 265 constats sur la suite de tests d'une bibliothèque HTTP |
+| « debugger » cité dans un commentaire TOML | Signalé au rang le plus grave sur `pyproject.toml` |
+| Les harnais de test comptés comme sous-projets | axios décrit comme « monorepo de 6 projets », dont cinq dossiers de tests |
+
+`requests` est ainsi passé de 393 constats / score 79 à **230 / score 92**, avec 3 constats bloquants au lieu de 11. Les trois restants sont MD5 dans l'authentification Digest — que la norme impose. C'est discutable, et c'est bien le signe que le bruit a disparu.
+
+Un manifeste illisible produit désormais un constat explicite : un rapport sans constat de dépendance doit dire s'il n'a **rien pu lire**, sinon il ressemble à un projet sain.
+
 ## Rester à jour dans un écosystème qui bouge
 
 Un analyseur statique se périme de trois façons, et **une seule s'automatise**. Le détail est dans [docs/veille.md](docs/veille.md) ; l'essentiel tient en trois points.

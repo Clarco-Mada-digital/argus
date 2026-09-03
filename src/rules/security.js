@@ -244,11 +244,23 @@ export const SECURITY_RULES = [
     title: 'URL en HTTP non chiffre',
     severity: 'medium',
     families: ['*'],
-    pattern: /["']http:\/\/(?!localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\]|schemas?\.|www\.w3\.org|xmlns)[^"'\s]+["']/g,
+    // Les domaines reserves aux exemples (RFC 2606 et RFC 6761) ne designent
+    // aucun service reel : `http://example.com` dans un test ou une
+    // documentation n'expose rien. Sans cette exception, la suite de tests
+    // d'une bibliotheque HTTP produisait 265 constats — tous faux, et tous
+    // assez nombreux pour noyer les vrais.
+    pattern: /["']http:\/\/(?!localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\]|\[\.\]|schemas?\.|www\.w3\.org|xmlns|(?:[\w-]+\.)*example\.(?:com|org|net)|(?:[\w-]+\.)*(?:test|invalid|localhost|local)(?:[:/]|["']))[^"'\s]+["']/g,
     raw: true,
     // Un URI d'espace de noms XML n'est jamais telecharge : c'est un
     // identifiant, pas une adresse.
-    ignoreIf: (line) => /xmlns|schemaLocation|namespace|<\?xml|\bDTD\b|maven\.apache\.org|w3\.org/i.test(line),
+    ignoreIf: (line) =>
+      /xmlns|schemaLocation|namespace|<\?xml|\bDTD\b|maven\.apache\.org|w3\.org/i.test(line) ||
+      // Hote calcule a l'execution : `f"http://{host}:{port}/"`. La regle
+      // affirme un appel en clair vers une ressource externe — elle ne peut
+      // pas l'affirmer si elle ignore l'hote. C'est presque toujours un
+      // serveur de test local, et c'etait la moitie des constats restants sur
+      // une bibliotheque HTTP.
+      /http:\/\/(?:\{|\$\{|%[sd]\b|["']\s*\+|<%)/.test(line),
     message: 'Appel a une ressource externe en clair.',
     suggestion: 'Passez l\'URL en https:// et activez HSTS cote serveur.',
     cwe: 'CWE-319',

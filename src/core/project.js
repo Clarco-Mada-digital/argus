@@ -27,6 +27,7 @@ export class ProjectContext {
 
     this.#construireSousProjets();
 
+    this.estBibliotheque = estUneBibliotheque(this);
     this.description = describeProject(this);
 
     /** Rempli par l'analyseur de routes, consomme par SEO et code mort. */
@@ -429,6 +430,48 @@ function plateformesRetenues(perimetre, deduites) {
   return retenues;
 }
 
+/**
+ * Le projet est-il une bibliotheque ?
+ *
+ * Distinction absente jusqu'ici, et decouverte en analysant `requests`,
+ * `axios` et `express` : soixante-dix exports « morts » y ont ete signales,
+ * alors que **les exports d'une bibliotheque sont son produit**. Ils ne sont
+ * pas importes en interne pour la meme raison qu'une porte d'entree ne s'ouvre
+ * pas depuis l'interieur.
+ *
+ * Une bibliotheque se reconnait a ce qu'elle *publie* une surface — champ
+ * `main`/`exports`, paquet Python declare, autoload PSR-4 — sans avoir de
+ * point d'entree applicatif.
+ */
+function estUneBibliotheque(perimetre) {
+  // Une application native n'est pas une bibliotheque, quoi qu'elle declare.
+  // Un projet Electron porte un `main` — le point d'entree de son processus
+  // principal, pas une API publiee — et garde `electron` en dependance de
+  // developpement, ce qui est la bonne pratique. Sans cette garde, toute
+  // application de bureau ou mobile basculait du mauvais cote.
+  if (perimetre.platforms?.some((p) => p === 'mobile' || p === 'desktop')) return false;
+
+  const pkg = perimetre.manifests?.['package.json']?.data;
+  if (pkg) {
+    // `private: true` designe une application ou un espace de travail.
+    if (pkg.private === true) return false;
+    if (pkg.main || pkg.exports || pkg.module || pkg.types) return true;
+    // `files` enumere ce qui part a la publication : c'est la definition meme
+    // d'un paquet distribue. Express ne declare aucun `main` — il s'en remet
+    // au `index.js` par defaut — et n'etait donc pas reconnu.
+    if (Array.isArray(pkg.files) && pkg.files.length > 0) return true;
+  }
+
+  // Python : un paquet declare pour distribution.
+  if (perimetre.manifests?.['pyproject.toml'] || perimetre.byPath?.has('setup.py')) return true;
+
+  // PHP : un paquet Composer de type bibliotheque.
+  const composer = perimetre.manifests?.['composer.json']?.data;
+  if (composer && composer.type !== 'project' && composer.autoload) return true;
+
+  return false;
+}
+
 /** Le perimetre contient-il au moins une page HTML servable ? */
 function aDesPagesHtml(perimetre) {
   return (perimetre.files || []).some(
@@ -597,6 +640,32 @@ const IDENTITES = [
 
 function describeProject(context) {
   context.identite = IDENTITES.find((c) => context.frameworks.includes(c.id))?.id ?? null;
+
+  // Une bibliotheque n'est pas l'application de ses outils. Axios utilise
+  // Express pour son serveur de test, en dependance de developpement : cela
+  // n'en fait pas une application Express. L'identite d'une bibliotheque ne
+  // se lit donc que dans ses dependances de production.
+  if (context.estBibliotheque && context.identite) {
+    const prod = context.manifests?.['package.json']?.data?.dependencies || {};
+    const preuve = context.preuves?.get(context.identite) || '';
+    const venuDUneDependance = /dependance/.test(preuve);
+    if (venuDUneDependance && !Object.keys(prod).some((d) => preuve.includes(d))) {
+      context.identite = null;
+    }
+  }
+
+  // Une bibliotheque n'est pas une application. `express` etait decrit comme
+  // « Site statique » parce qu'il contient des pages d'exemple : le signal le
+  // plus visible du rapport designait exactement le contraire de la realite.
+  // `static-site` ne repose que sur la presence d'un index.html : dans une
+  // bibliotheque, c'est une page d'exemple ou de documentation, pas le
+  // produit. `express` etait ainsi decrit comme « Site statique ».
+  if (context.estBibliotheque && context.identite === 'static-site') context.identite = null;
+
+  if (context.estBibliotheque && !context.identite) {
+    const principal = context.stack?.find((s) => s.code);
+    return principal ? `Bibliotheque ${principal.language}` : 'Bibliotheque';
+  }
 
   if (context.estMonorepo && context.sousProjets?.length) {
     const noms = context.sousProjets.map((p) => p.description);

@@ -157,6 +157,11 @@ function detectUnusedExports(files, graph, context, report) {
 
     for (const declaration of declarations) {
       if (!declaration.exported) continue;
+      // Les exports d'une bibliotheque sont son produit : ils ne sont pas
+      // importes en interne pour la meme raison qu'une porte d'entree ne
+      // s'ouvre pas depuis l'interieur. Signaler la surface publique de
+      // `requests` comme morte etait le contresens le plus complet possible.
+      if (context.estBibliotheque) continue;
       if (declaration.decorated) continue; // appele par un framework
       if (declaration.name.length < 3) continue;
       if (consumers?.has(declaration.name)) continue;
@@ -388,7 +393,15 @@ function detectCommentedCode(file, report) {
   flush();
 }
 
+/** Familles ou un « debugger » ou un « print » est du code, pas un mot. */
+const FAMILLES_DE_CODE = new Set(['js', 'python', 'php', 'ruby', 'jvm', 'dart', 'go', 'rust', 'dotnet']);
+
 function detectDebugLeftovers(file, report) {
+  // Un fichier de configuration n'execute rien. « flake8-debugger » cite dans
+  // un commentaire de pyproject.toml etait signale comme une instruction
+  // debugger oubliee, au rang le plus grave.
+  if (!FAMILLES_DE_CODE.has(file.family)) return;
+
   const masked = maskedSource(file);
   const index = lineIndexFor(file);
   const patterns = [

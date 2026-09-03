@@ -1,0 +1,59 @@
+name: Corpus de projets reels
+
+# Vingt-cinq fixtures, toutes ecrites par l'auteur des regles : on y mesure si
+# les regles trouvent ce qu'on a mis la pour qu'elles le trouvent. Ce workflow
+# les confronte a du code que personne n'a ecrit pour Argus.
+#
+# Il ne cherche pas « le bon nombre de constats » — personne ne le connait —
+# mais les ruptures : une regle qui explose, une regle qui disparait, un
+# plantage. Le releve de reference est versionne ; un ecart voulu se valide en
+# le mettant a jour dans la meme pull request que le changement.
+
+on:
+  schedule:
+    # Mardi 6 h UTC, decale du workflow de veille pour ne pas cumuler.
+    - cron: '0 6 * * 2'
+  workflow_dispatch:
+  pull_request:
+    # Un changement de regle doit passer par ici : c'est la seule mesure sur
+    # du vrai code.
+    paths:
+      - 'src/rules/**'
+      - 'src/analyzers/**'
+      - 'src/lang/**'
+      - 'src/core/**'
+
+permissions:
+  contents: read
+
+jobs:
+  corpus:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # Les depots clones changent rarement : les garder d'une execution a
+      # l'autre evite une quarantaine de megaoctets de trafic a chaque fois.
+      - name: Cache du corpus
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/argus-corpus
+          key: corpus-${{ hashFiles('scripts/corpus.js') }}
+
+      - name: Comparer au releve de reference
+        env:
+          ARGUS_CORPUS_CACHE: ~/.cache/argus-corpus
+        run: node scripts/corpus.js
+
+      - name: Regles qui ne se declenchent jamais
+        if: always()
+        env:
+          ARGUS_CORPUS_CACHE: ~/.cache/argus-corpus
+        run: |
+          # Informatif : une regle muette sur neuf projets varies est soit
+          # trop etroite, soit inutile. Ce n'est pas un echec, c'est une
+          # question a se poser.
+          node scripts/corpus.js --muettes >> "$GITHUB_STEP_SUMMARY" || true

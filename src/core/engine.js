@@ -112,6 +112,7 @@ export class Engine {
         platforms: context.platforms,
         description: context.description,
         identite: context.identite ?? null,
+        estBibliotheque: Boolean(context.estBibliotheque),
         plateformeImposee: Boolean(context.plateformeImposee),
         preuves: Object.fromEntries(context.preuves || []),
         monorepo: Boolean(context.estMonorepo),

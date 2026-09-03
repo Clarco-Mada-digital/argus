@@ -181,11 +181,58 @@ function readGitignore(root) {
   }
 }
 
+/**
+ * Retire les commentaires d'un JSON permissif (tsconfig, jsconfig).
+ *
+ * L'implementation par expressions regulieres etait fausse, et son echec
+ * silencieux : elle ne distinguait pas un commentaire d'une chaine. Un
+ * `package.json` moderne declare ses sous-chemins avec des jokers —
+ * `"./unsafe/*": "./lib/*"` — et le `/*` y etait pris pour une ouverture de
+ * commentaire. Tout ce qui suivait, jusqu'au `*​/` suivant, disparaissait.
+ *
+ * Le manifeste devenait alors illisible, `data` valait `null`, et l'analyse
+ * continuait sans le dire : aucune dependance detectee, aucun framework
+ * reconnu, aucune vulnerabilite recherchee. Le rapport paraissait normal.
+ * Trouve sur `axios` — c'est-a-dire sur le premier vrai projet regarde de
+ * pres.
+ *
+ * On parcourt donc les caracteres en suivant l'etat des chaines.
+ */
 export function stripJsonComments(text) {
-  return text
-    .replace(/^\s*\/\/.*$/gm, '')
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .replace(/,(\s*[}\]])/g, '$1');
+  let sortie = '';
+  let dansUneChaine = false;
+  let i = 0;
+
+  while (i < text.length) {
+    const c = text[i];
+
+    if (dansUneChaine) {
+      sortie += c;
+      if (c === '\\') { sortie += text[i + 1] ?? ''; i += 2; continue; }
+      if (c === '"') dansUneChaine = false;
+      i++;
+      continue;
+    }
+
+    if (c === '"') { dansUneChaine = true; sortie += c; i++; continue; }
+
+    if (c === '/' && text[i + 1] === '/') {
+      while (i < text.length && text[i] !== '\n') i++;
+      continue;
+    }
+
+    if (c === '/' && text[i + 1] === '*') {
+      const fin = text.indexOf('*/', i + 2);
+      i = fin === -1 ? text.length : fin + 2;
+      continue;
+    }
+
+    sortie += c;
+    i++;
+  }
+
+  // Virgule finale : toleree par les JSON permissifs, refusee par JSON.parse.
+  return sortie.replace(/,(\s*[}\]])/g, '$1');
 }
 
 function deepMerge(base, patch) {

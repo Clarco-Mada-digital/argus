@@ -1,6 +1,6 @@
 import { SECURITY_RULES, CONFIG_SECURITY_RULES } from '../rules/security.js';
 import { detectSecrets, redact } from '../rules/secrets.js';
-import { lineIndexFor, maskedSource, matches } from '../core/scan.js';
+import { dansUnCommentaire, lineIndexFor, maskedSource, matches } from '../core/scan.js';
 import { analyserPortees, ORIGINES } from '../lang/js/portees.js';
 import { analyserPortees as analyserPorteesPython } from '../lang/python/portees.js';
 import { t } from '../i18n/index.js';
@@ -81,6 +81,11 @@ function scanPatterns(file, context, report, cache) {
     // quand la regle cible explicitement des litteraux.
     for (const match of matches(haystack, rule.pattern)) {
       if (estUnExemple(match.index)) continue;
+      // Une adresse citee dans un commentaire est de la documentation, pas un
+      // appel. Sur une bibliotheque HTTP, cela representait la moitie des
+      // constats — et les regles `raw` lisent le code d'origine, commentaires
+      // compris.
+      if (rule.raw && dansUnCommentaire(file, match.index)) continue;
       const position = index.position(match.index);
       const lineText = index.textOfLine(position.line);
       if (rule.ignoreIf && rule.ignoreIf(lineText, file)) continue;
@@ -243,7 +248,7 @@ function scanSecrets(file, context, report) {
       seenValues.add(secret.match);
       if (isSuppressed(index, i + 1)) continue;
 
-      const severity = isExampleFile || file.isTest ? downgrade(secret.severity) : secret.severity;
+      const severity = graviteDuSecret(secret, file, isExampleFile);
       report({
         ruleId: `SEC-SECRET-${secret.kind.toUpperCase()}`,
         severity,
@@ -275,6 +280,33 @@ function estFichierDeConfiguration(file) {
     /\.(properties|ini|cfg|conf|env|editorconfig)$/i.test(file.name) ||
     /^(application|bootstrap)[\w.-]*\.(properties|ya?ml)$/i.test(file.name)
   );
+}
+
+/**
+ * Gravite d'un secret selon l'endroit ou il se trouve.
+ *
+ * Deux natures de secret, deux traitements.
+ *
+ * Un identifiant **emis par un fournisseur** — clef Stripe, jeton GitHub,
+ * clef AWS — est une vraie fuite ou qu'il soit. Le trouver dans un test ne le
+ * rend pas moins valable : il ouvre le meme compte. Un seul cran de moins.
+ *
+ * Un secret **engendre par le projet** — certificat auto-signe, clef privee de
+ * test, URL locale — est du materiel de fixture. Une bibliotheque HTTP
+ * versionne des certificats expires *pour tester les certificats expires* ;
+ * les signaler au rang le plus grave condamne le projet a n'etre jamais
+ * propre, et apprend a ignorer la categorie.
+ */
+const SECRETS_DE_FOURNISSEUR = new Set([
+  'aws-access-key', 'aws-secret', 'github-token', 'gitlab-token', 'slack-token',
+  'stripe-key', 'google-api-key', 'firebase-key', 'openai-key', 'anthropic-key',
+  'sendgrid-key', 'twilio-sid', 'mailgun-key', 'npm-token',
+]);
+
+function graviteDuSecret(secret, file, isExampleFile) {
+  if (!file.isTest && !isExampleFile) return secret.severity;
+  if (SECRETS_DE_FOURNISSEUR.has(secret.kind)) return downgrade(secret.severity);
+  return downgrade(downgrade(secret.severity));
 }
 
 function downgrade(severity) {

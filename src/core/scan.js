@@ -68,6 +68,61 @@ export function maskedSource(file) {
   return masked;
 }
 
+/**
+ * Plages occupees par des commentaires.
+ *
+ * Distincte du masquage complet, qui blanchit aussi les chaines : une regle
+ * qui cherche un litteral a besoin des chaines mais pas des commentaires.
+ * Sans cette distinction, `# exemple : "http://domaine.tld/x"` etait signale
+ * comme un appel en clair — sur une bibliotheque HTTP, cela representait la
+ * moitie des constats.
+ *
+ * L'analyse est volontairement simple : elle ne suit pas les chaines, donc un
+ * `#` a l'interieur d'un litteral ouvre une fausse plage. Le risque est
+ * asymetrique et assume — au pire on ignore un constat, jamais on n'en invente.
+ */
+const PLAGES_DE_COMMENTAIRE = new WeakMap();
+
+export function plagesDeCommentaire(file) {
+  if (PLAGES_DE_COMMENTAIRE.has(file)) return PLAGES_DE_COMMENTAIRE.get(file);
+
+  const syntaxe = COMMENT_SYNTAX[file.language] || COMMENT_SYNTAX[file.family] || null;
+  const plages = [];
+
+  if (syntaxe) {
+    const source = file.content;
+    const { line, block } = syntaxe;
+
+    if (line) {
+      let i = 0;
+      while ((i = source.indexOf(line, i)) !== -1) {
+        const fin = source.indexOf('\n', i);
+        plages.push([i, fin === -1 ? source.length : fin]);
+        i = fin === -1 ? source.length : fin;
+      }
+    }
+
+    if (block) {
+      const [ouvre, ferme] = block;
+      let i = 0;
+      while ((i = source.indexOf(ouvre, i)) !== -1) {
+        const fin = source.indexOf(ferme, i + ouvre.length);
+        const borne = fin === -1 ? source.length : fin + ferme.length;
+        plages.push([i, borne]);
+        i = borne;
+      }
+    }
+  }
+
+  PLAGES_DE_COMMENTAIRE.set(file, plages);
+  return plages;
+}
+
+/** Cet emplacement tombe-t-il dans un commentaire ? */
+export function dansUnCommentaire(file, offset) {
+  return plagesDeCommentaire(file).some(([debut, fin]) => offset >= debut && offset < fin);
+}
+
 export function maskCommentsAndStrings(source, family = 'js', { keepStrings = false } = {}) {
   const syntax = COMMENT_SYNTAX[family] || COMMENT_SYNTAX.js;
   const out = source.split('');

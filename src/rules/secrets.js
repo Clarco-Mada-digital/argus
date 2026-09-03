@@ -29,7 +29,17 @@ const PROVIDER_SECRETS = [
     // apprend a ignorer la regle le jour ou une vraie URL apparait.
     ignore: /:\/\/(user|username|utilisateur|admin|root|foo|test|demo):(pass|password|motdepasse|secret|changeme|xxx+|\*+)@|@(localhost|127\.0\.0\.1|db|host|hostname|example\.\w+)[:/]/i,
   },
-  { id: 'basic-auth-url', label: 'URL HTTP avec identifiants', pattern: /\bhttps?:\/\/[^:\s"']+:[^@\s"']{3,}@/gi, severity: 'high' },
+  {
+    id: 'basic-auth-url',
+    label: 'URL HTTP avec identifiants',
+    pattern: /\bhttps?:\/\/[^:\s"']+:[^@\s"']{3,}@/gi,
+    severity: 'high',
+    // Meme liste de faux amis que pour les URL de base de donnees, qui en
+    // avait une alors que celle-ci n'en avait aucune. Une documentation qui
+    // montre `http://user:password@host/` decrit la syntaxe ; la signaler au
+    // rang le plus grave sur trois pages de doc apprend a ignorer la regle.
+    ignore: /:\/\/(user|username|utilisateur|admin|root|foo|bar|test|demo|<[^>]+>|\$\{?\w+)\s*:\s*(pass|password|passwd|motdepasse|secret|changeme|xxx+|\*+|<[^>]+>|\$\{?\w+)@|@(localhost|127\.0\.0\.1|host|hostname|example\.\w+|10\.\d+\.\d+\.\d+)[:/]/i,
+  },
 ];
 
 /** Noms de variables consideres comme sensibles pour l'heuristique generique. */

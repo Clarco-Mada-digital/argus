@@ -73,6 +73,29 @@ export default {
   order: 80,
 
   async run(context, report) {
+    // Un manifeste illisible fait echouer toute l'analyse de dependances —
+    // en silence, ce qui est le pire des cas : le rapport parait normal et
+    // n'a simplement rien verifie. Trouve sur un vrai projet, ou un joker
+    // d'export cassait le nettoyage des commentaires JSON.
+    for (const [nom, manifeste] of Object.entries(context.manifests)) {
+      if (!manifeste?.invalid) continue;
+      report({
+        ruleId: 'DEP-MANIFESTE-ILLISIBLE',
+        severity: 'high',
+        title: `${nom} n'a pas pu etre lu`,
+        message:
+          `Le fichier ${nom} n'est pas analysable : ses dependances n'ont donc pas ete verifiees, ` +
+          'et le framework du projet n\'a peut-etre pas ete reconnu. Un rapport sans constat de ' +
+          'dependance ne signifie pas ici que tout va bien.',
+        file: manifeste.file?.relativePath ?? nom,
+        line: 1,
+        suggestion:
+          'Verifiez que le fichier est un JSON valide. S\'il l\'est, c\'est un defaut d\'Argus : signalez-le.',
+        confidence: 'firm',
+        effort: 'rapide',
+      });
+    }
+
     const dependencies = context.dependencies;
     if (dependencies.size === 0) return;
 

@@ -294,6 +294,27 @@ export function resolveImport(spec, fromFile, context, importedNames = []) {
     return null;
   }
 
+  // Import relatif Python : le point designe le paquet courant, pas un nom de
+  // fichier. La resolution generique produisait `src/requests/.adapters`, un
+  // fichier cache qui n'existe evidemment pas — et tout le coeur d'une
+  // bibliotheque Python passait pour du code mort. Aucune de mes fixtures ne
+  // l'a montre : elles utilisent toutes des imports absolus.
+  if (file_family(fromFile) === 'python' && isRelative) {
+    const points = /^\.+/.exec(target)[0].length;
+    const reste = target.slice(points).replace(/\./g, '/');
+
+    // Un point : le paquet courant. Chaque point supplementaire remonte d'un
+    // cran, comme `..` dans un chemin.
+    let dossier = path.posix.dirname(fromFile.relativePath);
+    for (let i = 1; i < points; i++) dossier = path.posix.dirname(dossier);
+
+    const base = reste ? path.posix.join(dossier, reste) : dossier;
+    const candidats = [`${base}.py`, `${base}/__init__.py`];
+    // `from . import adapters` : le nom importe designe le module.
+    for (const nom of importedNames) candidats.push(`${base}/${nom}.py`);
+    return findFile(context, candidats);
+  }
+
   if (file_family(fromFile) === 'python' && !isRelative) {
     const base = target.replace(/\./g, '/');
     const candidats = [`${base}.py`, `${base}/__init__.py`];

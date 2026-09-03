@@ -72,7 +72,13 @@ export function decouvrirSousProjets(files) {
   // peut plus courant — l'exclure faisait disparaitre l'application front d'un
   // monorepo, ce qui est exactement le contraire du but recherche.
   const retenus = [...dossiers].filter(
-    (dossier) => !/(^|\/)(android|ios|macos|windows|linux|src-tauri)$/.test(dossier),
+    (dossier) =>
+      !/(^|\/)(android|ios|macos|windows|linux|src-tauri)$/.test(dossier) &&
+      // Un harnais de test ou un exemple porte souvent son propre manifeste,
+      // pour s'isoler du projet — pas parce qu'il en est un composant. Axios
+      // se voyait ainsi decrit comme « monorepo de 6 projets », dont cinq
+      // dossiers de test et une documentation.
+      !/(^|\/)(tests?|__tests__|spec|specs|examples?|samples?|fixtures?|benchmarks?|bench|e2e|demo)(\/|$)/i.test(dossier),
   );
 
   return retenus.sort((a, b) => b.length - a.length);
