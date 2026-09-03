@@ -390,7 +390,25 @@ const SCRIPT = String.raw`
       el('div', { html: svg }),
       el('div', { class: 'grade', text: 'Note ' + grade, style: 'background:' + scoreColor(score) + ';color:var(--on-accent)' }),
       el('div', { class: 'gauge-label', text: data.scores.total + ' problemes' }),
+      // Une moyenne peut cacher deux verites opposees. Nommer ce qui la tire
+      // vers le bas garde le chiffre comparable sans le laisser masquer.
+      tireVersLeBas(score),
     ]);
+  }
+
+  function tireVersLeBas(global) {
+    const faibles = Object.keys(data.scores.categories)
+      .map((id) => ({ id, note: data.scores.categories[id].score, nom: data.scores.categories[id].label || id }))
+      .filter((c) => c.note < global - 8)
+      .sort((a, b) => a.note - b.note)
+      .slice(0, 3);
+
+    if (faibles.length === 0) return null;
+    return el('div', {
+      class: 'gauge-label',
+      style: 'margin-top:6px',
+      text: 'tire vers le bas par ' + faibles.map((c) => c.nom.toLowerCase() + ' ' + c.note).join(' \u00b7 '),
+    });
   }
 
   /**

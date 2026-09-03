@@ -7,7 +7,7 @@ import { Engine } from '../src/core/engine.js';
 import { renderReport, createSpinner, color } from '../src/report/terminal.js';
 import { renderHtml } from '../src/report/html.js';
 import { renderCompact, renderGithub, renderJson, renderMarkdown, renderSarif } from '../src/report/formats.js';
-import { atLeast, CATEGORY_IDS, SEVERITIES } from '../src/core/severity.js';
+import { atLeast, CATEGORY_IDS, SEVERITIES, SEVERITY_LABEL_FR } from '../src/core/severity.js';
 import { SECURITY_RULES } from '../src/rules/security.js';
 import { startServer } from '../src/server/index.js';
 import { syncOsv } from '../src/core/osv.js';
@@ -193,11 +193,33 @@ function renderEvolution(evolution, result) {
       color.dim(`  (${deltaTotal > 0 ? '+' : ''}${deltaTotal} probleme${Math.abs(deltaTotal) > 1 ? 's' : ''})`),
   ];
 
+  // Le decompte par severite dit ce que le score ne peut pas dire : un score
+  // qui baisse pendant que les constats critiques tombent decrit un progres,
+  // pas une regression.
+  const parSeverite = SEVERITIES.filter((s) => evolution.deltaParSeverite?.[s]);
+  if (parSeverite.length > 0) {
+    lignes.push('');
+    lignes.push(color.dim('  Depuis la derniere analyse, par gravite'));
+    for (const severite of parSeverite) {
+      const ecart = evolution.deltaParSeverite[severite];
+      // Moins de problemes est un progres, quelle que soit leur gravite.
+      const paint = ecart < 0 ? color.green : color.red;
+      lignes.push(
+        color.dim(`    ${SEVERITY_LABEL_FR[severite].padEnd(22)} `) +
+          paint(`${ecart > 0 ? '+' : ''}${ecart}`),
+      );
+    }
+  }
+
   // On ne cite que les categories qui ont reellement bouge.
   const bougees = Object.entries(evolution.deltaParCategorie)
     .filter(([, d]) => d !== 0)
     .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
     .slice(0, 3);
+  if (bougees.length > 0) {
+    lignes.push('');
+    lignes.push(color.dim('  Notes qui ont bouge'));
+  }
   for (const [id, d] of bougees) {
     const nom = result.scores.categories[id]?.label ?? id;
     const paint = d > 0 ? color.green : color.red;

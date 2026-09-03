@@ -78,11 +78,21 @@ export function comparer(historique, result) {
     if (actuel !== undefined) deltaParCategorie[id] = actuel - score;
   }
 
+  // Ce qui a *reellement* bouge. Une equipe a vu son score de performance
+  // baisser apres avoir ramene 125 requetes SQL a 34 : le score seul ne
+  // pouvait pas raconter ca. Le decompte par severite, si.
+  const deltaParSeverite = {};
+  for (const severite of Object.keys({ ...precedent.counts, ...result.scores.counts })) {
+    const ecart = (result.scores.counts[severite] || 0) - (precedent.counts?.[severite] || 0);
+    if (ecart !== 0) deltaParSeverite[severite] = ecart;
+  }
+
   return {
     precedent,
     delta: result.scores.global - precedent.global,
     deltaTotal: result.scores.total - precedent.total,
     deltaParCategorie,
+    deltaParSeverite,
     ecoule: Date.now() - new Date(precedent.date).getTime(),
   };
 }

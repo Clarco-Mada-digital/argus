@@ -550,3 +550,64 @@ test('terrain : un identifiant genere n\'ecrase jamais un identifiant existant',
 
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test('terrain : le score global nomme ce qui le tire vers le bas', async () => {
+  // « Un projet peut etre irreprochable en securite et mediocre en
+  // accessibilite ; la moyenne ne veut rien dire et cache les deux. » Le
+  // chiffre reste — il se compare d'un coup d'oeil — mais il ne masque plus.
+  const dir = projetDjango({
+    'page.html': '<div><img src="a.png"><input type="text" name="x"></div>\n',
+  });
+
+  const rapport = await scan(dir, { noHistory: true });
+  const sortie = renderReport(rapport);
+
+  const faible = Object.entries(rapport.scores.categories)
+    .filter(([, c]) => c.score < rapport.scores.global - 8)
+    .sort((a, b) => a[1].score - b[1].score)[0];
+
+  assert.ok(faible, 'le decor doit produire une note nettement basse');
+  assert.match(sortie, /Tire vers le bas par/);
+  assert.ok(
+    sortie.includes(String(faible[1].score)),
+    'la note faible doit etre citee, pas seulement annoncee',
+  );
+
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('terrain : le delta par gravite distingue un progres d\'une regression', async () => {
+  // Leur cas : 125 requetes SQL ramenees a 34, et le score qui *baisse*. Le
+  // score seul ne pouvait pas raconter ca ; le decompte par gravite, si.
+  const { comparer } = await import('../src/core/history.js');
+
+  const precedent = {
+    date: new Date(Date.now() - 3600000).toISOString(),
+    global: 78,
+    total: 30,
+    categories: { security: 96 },
+    counts: { critical: 3, high: 20, medium: 5, low: 2 },
+  };
+
+  const courant = {
+    scores: {
+      global: 76,
+      total: 22,
+      categories: { security: { score: 96 } },
+      counts: { critical: 0, high: 2, medium: 15, low: 5 },
+    },
+  };
+
+  const evolution = comparer([precedent], courant);
+
+  assert.equal(evolution.delta, -2, 'le score baisse');
+  assert.deepEqual(evolution.deltaParSeverite, {
+    critical: -3,
+    high: -18,
+    medium: 10,
+    low: 3,
+  });
+  // Le score baisse alors que 21 constats graves ont disparu : c'est
+  // exactement ce que le decompte doit rendre visible.
+  assert.ok(evolution.deltaParSeverite.critical < 0 && evolution.deltaParSeverite.high < 0);
+});

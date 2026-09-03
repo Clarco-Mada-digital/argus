@@ -182,7 +182,22 @@ function percent(value, total) {
 
 function renderScores(result) {
   const { scores } = result;
-  const lines = ['', divider(), '', `  ${color.bold('SCORE GLOBAL')}   ${bigScore(scores.global)} ${gradeBadge(scores.grade)}`, ''];
+  const lines = ['', divider(), '', `  ${color.bold('SCORE GLOBAL')}   ${bigScore(scores.global)} ${gradeBadge(scores.grade)}`];
+
+  // Une moyenne peut cacher deux verites opposees : irreprochable en securite
+  // et mediocre en accessibilite donne le meme chiffre qu'un projet moyen
+  // partout. Nommer ce qui tire vers le bas rend le chiffre lisible sans le
+  // supprimer — il reste comparable d'un coup d'oeil, mais il ne masque plus.
+  const faibles = Object.entries(scores.categories)
+    .filter(([, c]) => c.score < scores.global - 8)
+    .sort((a, b) => a[1].score - b[1].score)
+    .slice(0, 3)
+    .map(([id, c]) => `${(CATEGORIES[id]?.label || id).toLowerCase()} ${c.score}`);
+
+  if (faibles.length > 0) {
+    lines.push(color.dim(`  Tire vers le bas par  ${faibles.join(color.dim(' · '))}`));
+  }
+  lines.push('');
 
   for (const id of Object.keys(scores.categories)) {
     const category = scores.categories[id];
