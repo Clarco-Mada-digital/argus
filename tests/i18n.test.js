@@ -115,3 +115,33 @@ test('langue : la langue courante est bien celle qu\'on a posee', () => {
   assert.equal(definirLangue('klingon'), 'fr', 'une langue inconnue ne casse rien');
   assert.equal(langue(), 'fr');
 });
+
+test('traduction : un rapport anglais ne laisse aucun titre en francais', async () => {
+  // Le vrai critere n'est pas le pourcentage de regles traduites mais ce que
+  // l'utilisateur voit. Une regle dynamique non couverte se remarque bien plus
+  // qu'une regle rare restee en francais.
+  const { definirLangue: poser } = await import('../src/i18n/index.js');
+  poser('en');
+
+  const rapport = await scan(path.join(FIXTURES, 'demo-site'), { noHistory: true });
+  const motsFrancais = /\b(dans|sans|avec|pour|une|des|les|aucun|absent|absente|trop|expose)\b/i;
+  const restants = [...new Set(rapport.findings.filter((f) => motsFrancais.test(f.title)).map((f) => f.ruleId))];
+
+  poser('fr');
+  assert.deepEqual(restants, [], `titres restes en francais : ${restants.join(', ')}`);
+});
+
+test('traduction : le libelle d\'un secret suit la langue du titre', async () => {
+  // Un titre traduit dont le complement reste francais se voit davantage
+  // qu'un titre entierement dans l'autre langue.
+  const { definirLangue: poser } = await import('../src/i18n/index.js');
+  poser('en');
+
+  const rapport = await scan(path.join(FIXTURES, 'demo-site'), { noHistory: true });
+  const secret = rapport.findings.find((f) => f.ruleId.startsWith('SEC-SECRET-'));
+
+  poser('fr');
+  assert.ok(secret, 'la fixture doit contenir un secret');
+  assert.match(secret.title, /Exposed secret/);
+  assert.ok(!/URL de base/.test(secret.title), 'le libelle doit etre traduit lui aussi');
+});

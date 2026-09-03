@@ -28,6 +28,33 @@ export const CATALOGUE_FR = {
   'effort.moyen': 'moyen',
   'effort.long': 'long',
 
+
+  // ------------------------------------------- libelles de secrets
+  'secret.aws-access-key': 'Clef d\'acces AWS',
+  'secret.aws-secret': 'Secret AWS',
+  'secret.github-token': 'Jeton GitHub',
+  'secret.gitlab-token': 'Jeton GitLab',
+  'secret.slack-token': 'Jeton Slack',
+  'secret.stripe-key': 'Clef Stripe',
+  'secret.google-api-key': 'Clef API Google',
+  'secret.firebase-key': 'Clef Firebase',
+  'secret.openai-key': 'Clef OpenAI',
+  'secret.anthropic-key': 'Clef Anthropic',
+  'secret.sendgrid-key': 'Clef SendGrid',
+  'secret.twilio-sid': 'Identifiant Twilio',
+  'secret.mailgun-key': 'Clef Mailgun',
+  'secret.npm-token': 'Jeton npm',
+  'secret.private-key': 'Clef privee',
+  'secret.jwt-token': 'Jeton JWT en dur',
+  'secret.db-url': 'URL de base avec identifiants',
+  'secret.basic-auth-url': 'URL HTTP avec identifiants',
+
+  // ------------------------- constats dont le titre cite une valeur relevee
+  'constat.secretExpose': 'Secret expose : {libelle}',
+  'constat.sansNomAccessible': '<{balise}> sans nom accessible',
+  'constat.cliquableNonAccessible': '<{balise}> cliquable non accessible',
+  'constat.versionVulnerable': 'Version potentiellement vulnerable : {paquet}',
+
   // ------------------------------------------------------------ confiance
   'confiance.firm': 'certain',
   'confiance.tentative': 'a verifier',

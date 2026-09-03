@@ -3,6 +3,7 @@ import path from 'node:path';
 import { readCache, cacheIsStale, findVulnerabilities } from '../core/osv.js';
 import { resolveInstalledVersions } from '../core/lockfiles.js';
 import { compareVersions } from '../core/semver.js';
+import { t } from '../i18n/index.js';
 
 /**
  * Analyseur de dependances : versions non epinglees, paquets abandonnes ou
@@ -229,7 +230,7 @@ function reportFromFallback(dependencies, context, report) {
     report({
       ruleId: 'DEP-VULNERABLE',
       severity: 'high',
-      title: `Version potentiellement vulnerable : ${dep.name}@${dep.range}`,
+      title: t('constat.versionVulnerable', { paquet: `${dep.name}@${dep.range}` }),
       message: `${entry.note} La version corrigee est ${entry.below} ou superieure. Source : liste locale de secours — a confirmer.`,
       file: manifestPath(context, dep.ecosystem),
       line: 1,

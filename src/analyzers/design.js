@@ -1,6 +1,7 @@
 import { parseHtml, stripTags } from '../core/html.js';
 import { contrastRatio, parseColor, toHex, toPixels, wcagLevel } from '../core/color.js';
 import { isQuoted, lineIndexFor, matches } from '../core/scan.js';
+import { t } from '../i18n/index.js';
 
 /**
  * Analyseur design et accessibilite.
@@ -281,7 +282,7 @@ function analyzeMarkup(file, options, report) {
         push({
           ruleId: 'A11Y-NO-ACCESSIBLE-NAME',
           severity: 'high',
-          title: `<${node.tag}> sans nom accessible`,
+          title: t('constat.sansNomAccessible', { balise: node.tag }),
           message: `Cet element interactif n'a ni texte visible ni aria-label : un lecteur d'ecran annoncera seulement "bouton" ou "lien".`,
           line: at(node),
           snippet: openingTag(file, node),
@@ -347,7 +348,7 @@ function analyzeMarkup(file, options, report) {
         push({
           ruleId: 'A11Y-CLICKABLE-DIV',
           severity: 'medium',
-          title: `<${node.tag}> cliquable non accessible`,
+          title: t('constat.cliquableNonAccessible', { balise: node.tag }),
           message: 'Un element non interactif porte un gestionnaire de clic : il est inatteignable au clavier et invisible pour les technologies d\'assistance.',
           line: at(node),
           snippet: file.content.slice(node.start, node.end),

@@ -28,6 +28,33 @@ export const CATALOGUE_EN = {
   'effort.moyen': 'moderate',
   'effort.long': 'substantial',
 
+
+  // ------------------------------------------- libelles de secrets
+  'secret.aws-access-key': 'AWS access key',
+  'secret.aws-secret': 'AWS secret',
+  'secret.github-token': 'GitHub token',
+  'secret.gitlab-token': 'GitLab token',
+  'secret.slack-token': 'Slack token',
+  'secret.stripe-key': 'Stripe key',
+  'secret.google-api-key': 'Google API key',
+  'secret.firebase-key': 'Firebase key',
+  'secret.openai-key': 'OpenAI key',
+  'secret.anthropic-key': 'Anthropic key',
+  'secret.sendgrid-key': 'SendGrid key',
+  'secret.twilio-sid': 'Twilio identifier',
+  'secret.mailgun-key': 'Mailgun key',
+  'secret.npm-token': 'npm token',
+  'secret.private-key': 'Private key',
+  'secret.jwt-token': 'Hard-coded JWT',
+  'secret.db-url': 'Database URL with credentials',
+  'secret.basic-auth-url': 'HTTP URL with credentials',
+
+  // ------------------------------- findings whose title quotes a measured value
+  'constat.secretExpose': 'Exposed secret: {libelle}',
+  'constat.sansNomAccessible': '<{balise}> without an accessible name',
+  'constat.cliquableNonAccessible': '<{balise}> clickable but not accessible',
+  'constat.versionVulnerable': 'Potentially vulnerable version: {paquet}',
+
   // ---------------------------------------------------------- confidence
   'confiance.firm': 'confirmed',
   'confiance.tentative': 'worth checking',

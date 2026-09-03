@@ -3,6 +3,7 @@ import { detectSecrets, redact } from '../rules/secrets.js';
 import { lineIndexFor, maskedSource, matches } from '../core/scan.js';
 import { analyserPortees, ORIGINES } from '../lang/js/portees.js';
 import { analyserPortees as analyserPorteesPython } from '../lang/python/portees.js';
+import { t } from '../i18n/index.js';
 
 /**
  * Analyseur de securite : motifs dangereux, secrets, configuration.
@@ -246,7 +247,10 @@ function scanSecrets(file, context, report) {
       report({
         ruleId: `SEC-SECRET-${secret.kind.toUpperCase()}`,
         severity,
-        title: `Secret expose : ${secret.label}`,
+        // Le libelle a sa propre clef : sinon le titre serait traduit et
+        // son complement resterait en francais, ce qui se voit plus qu'un
+        // titre entierement dans l'autre langue.
+        title: t('constat.secretExpose', { libelle: t(`secret.${secret.kind}`) }),
         message: `Une valeur sensible (${secret.label}, entropie ${secret.entropy}) est ecrite en dur dans le code : ${redact(secret.match)}`,
         file: file.relativePath,
         line: i + 1,

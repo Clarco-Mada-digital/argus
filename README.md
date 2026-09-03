@@ -434,21 +434,22 @@ Le français est la **version de référence** : les messages y ont été écrit
 
 | | État |
 |---|---|
-| Interface (libellés, en-têtes, commandes) | **66 / 66 — 100 %** |
-| Règles de sécurité | **43 / 46 — 93 %** |
-| Ensemble des règles | **43 / 272 — 16 %** |
+| Interface (libellés, en-têtes, commandes) | **88 / 88 — 100 %** |
+| Sécurité, SEO, exploration HTTP | **100 %** |
+| Ensemble des règles | **260 / 272 — 96 %** |
+| **Titres français restant dans un rapport anglais** | **aucun** |
 
 ```bash
 node scripts/traduction.js --reste   # ce qui manque, par catégorie
 ```
 
-### Ce qui reste, et pourquoi ce n'est pas fini
+### Le chiffre qui compte n'est pas le pourcentage
 
-**229 règles.** Ce ne sont pas des étiquettes mais de la prose explicative — c'est elle qui dit *pourquoi* un constat compte, et c'est la valeur du projet. Les traduire à la chaîne les abîmerait ; elles méritent une passe dédiée, pas une fin de session.
+96 % des règles sont traduites, mais le vrai critère est **ce que l'utilisateur voit**. Sur un rapport complet de 94 constats en anglais, **aucun titre ne reste en français** — et un test le vérifie à chaque exécution.
 
-**Un obstacle de nature différente** pour 21 % d'entre elles : les messages construits au moment de la détection (`« ${clé} » provient d'une entrée externe`) n'existent pas avant d'être produits. Le calque ne peut rien pour eux — il faut passer par `t()` à chaque site de construction, ce qui touche tous les analyseurs. C'est un refactor, pas une traduction.
+Les 12 règles restantes construisent leur titre au moment de la détection, en citant une valeur relevée. Le calque ne peut rien pour elles : le texte n'existe pas avant d'être produit. Là où c'était visible — le titre d'un secret exposé, un nom de balise, une version vulnérable — les sites de construction passent désormais par `t()`, ce qui est le mécanisme prévu pour ce cas.
 
-Les trois règles de sécurité manquantes (`SEC-GITIGNORE-ENV`, `SEC-NO-GITIGNORE`, `SEC-VENDOR-COMMITTED`) relèvent exactement de ce cas.
+Un détail qui se voit plus qu'on ne croit : le libellé du secret a sa propre clef. Sans cela, on obtenait *« Exposed secret: URL de base avec identifiants »* — un titre traduit dont le complément ne l'est pas, ce qui saute aux yeux davantage qu'une ligne entièrement en français.
 
 ## Revue de pull request
 

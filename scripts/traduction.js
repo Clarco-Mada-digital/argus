@@ -46,7 +46,10 @@ for (const [id, prefixe] of regles) {
   if (!parPrefixe.has(prefixe)) parPrefixe.set(prefixe, { total: 0, traduites: 0, restantes: [] });
   const groupe = parPrefixe.get(prefixe);
   groupe.total++;
-  if (REGLES_EN[id]) groupe.traduites++;
+  // Une entree vide ne traduit rien : la compter gonflerait le chiffre sans
+  // rien apporter a l'utilisateur, et c'est precisement ce qu'un indicateur
+  // ne doit jamais faire.
+  if (Object.keys(REGLES_EN[id] || {}).length > 0) groupe.traduites++;
   else groupe.restantes.push(id);
 }
 
