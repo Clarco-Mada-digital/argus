@@ -312,7 +312,7 @@ function runInit(target) {
   const template = {
     $schema: 'https://argus-scan.dev/schema.json',
     categories: CATEGORY_IDS,
-    ignore: ['**/legacy/**'],
+    ignore: exclusionsSuggerees(root),
     minSeverity: 'info',
     failOn: 'high',
     failUnderScore: 0,
@@ -322,12 +322,65 @@ function runInit(target) {
     options: DEFAULT_CONFIG.options,
   };
 
-  fs.writeFileSync(destination, `${JSON.stringify(template, null, 2)}\n`, 'utf8');
+  // Le fichier est relu par un analyseur qui tolere les commentaires : autant
+  // s'en servir pour dire ce que chaque reglage fait, plutot que de renvoyer
+  // le lecteur a une documentation qu'il n'ouvrira pas.
+  const entete =
+    '// Configuration Argus.\n' +
+    '//\n' +
+    '// Les dossiers evidents — node_modules, .venv, dist, build, vendor,\n' +
+    '// __pycache__, staticfiles — sont deja ignores sans etre listes ici.\n' +
+    '// `ignore` ne sert qu\'a ce qui est propre a ce projet.\n' +
+    '//\n' +
+    '// `failOn` decide du code de sortie en integration continue ; `minSeverity`\n' +
+    '// ne fait que filtrer l\'affichage. Les deux sont independants.\n';
+
+  fs.writeFileSync(destination, `${entete}${JSON.stringify(template, null, 2)}\n`, 'utf8');
   process.stdout.write(
     `${color.green('✔')} Configuration creee : ${path.relative(process.cwd(), destination)}\n\n` +
       `  Lancez ensuite : ${color.cyan('argus scan --html rapport.html --open')}\n`,
   );
   return 0;
+}
+
+/**
+ * Exclusions proposees, verifiees sur le disque.
+ *
+ * Un premier scan « brut » donnait une impression de projet catastrophique et
+ * decourageait avant tout examen. Plutot qu'une liste generique — dont la
+ * moitie ne correspondrait a rien ici — on ne propose que des chemins qui
+ * existent reellement, et on laisse un exemple commente pour la suite.
+ */
+function exclusionsSuggerees(root) {
+  const candidats = [
+    // Ecrits par un outil : les analyser revient a blamer un generateur.
+    ['**/migrations/**', 'migrations'],
+    ['**/static/**/*.min.css', 'static'],
+    ['**/static/**/*.min.js', 'static'],
+    ['**/*.generated.*', null],
+    ['**/coverage/**', 'coverage'],
+    ['**/storybook-static/**', 'storybook-static'],
+    ['**/public/build/**', 'public/build'],
+    ['**/docs/_build/**', 'docs/_build'],
+  ];
+
+  const existe = (relatif) => {
+    if (!relatif) return true;
+    const direct = path.join(root, relatif);
+    if (fs.existsSync(direct)) return true;
+    // `migrations` vit dans les applications, pas a la racine.
+    try {
+      return fs
+        .readdirSync(root, { withFileTypes: true })
+        .filter((e) => e.isDirectory() && !e.name.startsWith('.'))
+        .some((e) => fs.existsSync(path.join(root, e.name, relatif)));
+    } catch {
+      return false;
+    }
+  };
+
+  const retenus = candidats.filter(([, sonde]) => existe(sonde)).map(([motif]) => motif);
+  return retenus.length > 0 ? [...new Set(retenus)] : ['**/legacy/**'];
 }
 
 function runRules(options) {
