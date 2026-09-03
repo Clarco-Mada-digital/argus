@@ -5,6 +5,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { scan } from '../src/index.js';
 import { renderReport } from '../src/report/terminal.js';
+import { planFixes } from '../src/cli/fix.js';
+import { walkProject } from '../src/core/walker.js';
+import { ProjectContext } from '../src/core/project.js';
+import { loadConfig } from '../src/core/config.js';
 
 /**
  * Defauts remontes par une equipe apres usage sur un ERP Django en production
@@ -468,4 +472,81 @@ test('terrain : une interpolation Python compte comme un usage', async () => {
   assert.ok(masque.includes('platform.python_version()'), 'le code interpole survit');
   assert.ok(!masque.includes('Python '), 'le texte litteral est bien efface');
   assert.ok(!masque.includes('litteral'), 'une accolade doublee est un caractere, pas du code');
+});
+
+/** Le plan de correctifs d'un dossier, sans rien ecrire sur le disque. */
+async function planDe(dir) {
+  const config = await loadConfig(dir);
+  const { files } = await walkProject(config);
+  return planFixes(new ProjectContext(config, files));
+}
+
+test('terrain : les correctifs mecaniques les plus nombreux sont applicables', async () => {
+  // « Repetitif, sur, et representait ~180 constats chez nous. » Les deux
+  // familles citees : associer un label a son champ, et poser autocomplete.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'argus-fix-'));
+  fs.writeFileSync(
+    path.join(dir, 'inscription.html'),
+    [
+      '<!doctype html><html lang="fr"><head><meta charset="utf-8">',
+      '<meta name="viewport" content="width=device-width, initial-scale=1">',
+      '<title>Creer un compte</title>',
+      '<meta name="description" content="Ouvrez un compte pour suivre vos commandes."></head>',
+      '<body><main><h1>Creer un compte</h1><form method="post">',
+      '  <label>Adresse e-mail</label>',
+      '  <input type="email" name="courriel">',
+      '  <label>Nouveau mot de passe</label>',
+      '  <input type="password" name="nouveau_mot_de_passe">',
+      '  <label>Recherche</label>',
+      '  <input type="text" name="q">',
+      '  <label><input type="checkbox" name="cgu"> J\'accepte</label>',
+      '  <input type="submit" value="Creer">',
+      '</form></main></body></html>',
+    ].join('\n'),
+  );
+
+  const [entree] = await planDe(dir);
+  const apres = entree.after;
+
+  assert.match(apres, /<label for="champ-courriel">/);
+  assert.match(apres, /name="courriel" id="champ-courriel" autocomplete="email"/);
+  // Inscription : c'est `new-password` qu'il faut, sinon le navigateur
+  // proposerait l'ancien mot de passe dans le champ du nouveau.
+  assert.match(apres, /name="nouveau_mot_de_passe"[^>]*autocomplete="new-password"/);
+  // Un champ de recherche nomme `q` : on ne devine pas. Une valeur fausse
+  // ferait pre-remplir le mauvais champ, ce qui est pire que rien.
+  assert.doesNotMatch(apres, /name="q"[^>]*autocomplete=/);
+  // Le champ deja enveloppe par son label n'a besoin de rien.
+  assert.doesNotMatch(apres, /name="cgu"[^>]*id=/);
+  assert.doesNotMatch(apres, /type="submit"[^>]*autocomplete=/);
+
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('terrain : un identifiant genere n\'ecrase jamais un identifiant existant', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'argus-fix-id-'));
+  fs.writeFileSync(
+    path.join(dir, 'page.html'),
+    [
+      '<!doctype html><html lang="fr"><head><meta charset="utf-8">',
+      '<meta name="viewport" content="width=device-width, initial-scale=1">',
+      '<title>Contact</title>',
+      '<meta name="description" content="Ecrivez-nous, nous repondons sous 48 heures."></head>',
+      '<body><main><h1>Contact</h1>',
+      // Un element porte deja le nom que le correctif voudrait produire.
+      '<div id="champ-message">deja pris</div>',
+      '<form method="post">',
+      '  <label>Message</label>',
+      '  <input type="text" name="message">',
+      '</form></main></body></html>',
+    ].join('\n'),
+  );
+
+  const [entree] = await planDe(dir);
+
+  assert.match(entree.after, /<label for="champ-message-2">/);
+  assert.match(entree.after, /name="message" id="champ-message-2"/);
+  assert.match(entree.after, /<div id="champ-message">deja pris<\/div>/, 'l\'existant est intact');
+
+  fs.rmSync(dir, { recursive: true, force: true });
 });

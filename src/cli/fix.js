@@ -54,6 +54,79 @@ export const FIXERS = [
   },
 
   {
+    id: 'autocomplete',
+    ruleId: 'UX-NO-AUTOCOMPLETE',
+    risk: RISK.SUR,
+    label: 'Renseigner autocomplete sur les champs de formulaire',
+    why:
+      'Le navigateur peut pre-remplir le champ, ce qui supprime une friction reelle sur ' +
+      'telephone. La valeur est deduite du type et du nom du champ, et n\'est posee que ' +
+      'lorsque les deux concordent : aucun effet visuel, aucun changement de comportement.',
+    applies: (file) => isHtmlLike(file.language),
+    collect(file) {
+      const edits = [];
+      for (const match of matches(file.content, /<input\b([^>]*)>/gi)) {
+        const attributs = match[1];
+        if (/\bautocomplete\s*=/i.test(attributs)) continue;
+
+        const valeur = valeurDAutocompletion(attributs);
+        if (!valeur) continue;
+
+        const insertion = match.index + match[0].length - (match[0].endsWith('/>') ? 2 : 1);
+        edits.push({ start: insertion, end: insertion, replacement: ` autocomplete="${valeur}"` });
+      }
+      return edits;
+    },
+  },
+
+  {
+    id: 'label-for',
+    ruleId: 'A11Y-INPUT-NO-LABEL',
+    risk: RISK.VERIFIER,
+    label: 'Associer un <label> a son champ (for / id)',
+    why:
+      'Le libelle est deja ecrit juste au-dessus du champ ; il ne lui est simplement pas ' +
+      'rattache. Cliquer le texte ne donne pas le focus, et un lecteur d\'ecran annonce un ' +
+      'champ sans nom. Le correctif ajoute un `id` deduit du `name` et le `for` correspondant. ' +
+      'A verifier parce qu\'il cree un identifiant : relisez si votre CSS ou votre JavaScript ' +
+      'selectionne par `id`.',
+    applies: (file) => isHtmlLike(file.language),
+    collect(file) {
+      const edits = [];
+      const source = file.content;
+
+      // Les identifiants deja pris, pour ne jamais en produire un doublon.
+      const pris = new Set();
+      for (const match of matches(source, /\bid\s*=\s*["']([^"']+)["']/gi)) pris.add(match[1]);
+
+      // `<label …>Texte</label>` immediatement suivi d'un `<input …>` : c'est la
+      // forme que decrit la regle, et la seule ou l'intention ne fait aucun doute.
+      const motif = /<label\b([^>]*)>([\s\S]{0,200}?)<\/label>\s*(<input\b([^>]*)>)/gi;
+      for (const match of matches(source, motif)) {
+        const [, attributsLabel, , baliseInput, attributsInput] = match;
+        if (/\bfor\s*=/i.test(attributsLabel)) continue;
+        if (/\bid\s*=/i.test(attributsInput)) continue;
+        if (/\baria-label(?:ledby)?\s*=/i.test(attributsInput)) continue;
+        if (/\btype\s*=\s*["'](?:hidden|submit|button|reset|image)["']/i.test(attributsInput)) continue;
+
+        const nom = /\bname\s*=\s*["']([\w[\]-]+)["']/i.exec(attributsInput)?.[1];
+        if (!nom) continue;
+
+        const identifiant = identifiantLibre(`champ-${nom.replace(/[^\w-]/g, '-')}`, pris);
+        pris.add(identifiant);
+
+        const finLabel = match.index + attributsLabel.length + '<label'.length;
+        edits.push({ start: finLabel, end: finLabel, replacement: ` for="${identifiant}"` });
+
+        const debutInput = match.index + match[0].length - baliseInput.length;
+        const insertion = debutInput + baliseInput.length - (baliseInput.endsWith('/>') ? 2 : 1);
+        edits.push({ start: insertion, end: insertion, replacement: ` id="${identifiant}"` });
+      }
+      return edits;
+    },
+  },
+
+  {
     id: 'charset',
     ruleId: 'SEO-CHARSET-MISSING',
     risk: RISK.SUR,
@@ -236,6 +309,59 @@ export const NON_AUTOMATISABLE = [
  * Calcule tous les correctifs applicables, sans rien ecrire.
  * @returns {Array<{file, fixes: Array<{fixer, edits}>, before, after, edits}>}
  */
+/**
+ * La valeur d'autocompletion deduite d'un champ, ou `null` si elle ne l'est pas.
+ *
+ * On ne devine pas : le type et le nom doivent concorder, et le nom doit etre
+ * explicite. Un champ `text` nomme `q` ou `valeur` ne recoit rien — mieux vaut
+ * ne rien poser qu'une valeur fausse, qui ferait pre-remplir le mauvais champ.
+ */
+function valeurDAutocompletion(attributs) {
+  const type = (/\btype\s*=\s*["']([\w-]+)["']/i.exec(attributs)?.[1] || 'text').toLowerCase();
+  const nom = (/\bname\s*=\s*["']([^"']+)["']/i.exec(attributs)?.[1] || '').toLowerCase();
+
+  if (type === 'email') return 'email';
+  if (type === 'tel') return 'tel';
+  if (type === 'password') {
+    // Un formulaire d'inscription et un formulaire de connexion demandent des
+    // valeurs opposees : se tromper ferait proposer l'ancien mot de passe.
+    if (/nouveau|new|confirm|repeat|again|1|2/.test(nom)) return 'new-password';
+    if (/actuel|current|old|ancien/.test(nom)) return 'current-password';
+    return 'current-password';
+  }
+
+  if (type !== 'text' && type !== 'search') return null;
+
+  const correspondances = [
+    [/^(courriel|email|mail|e_?mail)$/, 'email'],
+    [/^(telephone|tel|phone|mobile|portable)$/, 'tel'],
+    [/(prenom|firstname|given_?name)/, 'given-name'],
+    [/(^nom$|lastname|family_?name|surname)/, 'family-name'],
+    [/(nom_?complet|fullname|full_?name)/, 'name'],
+    [/(identifiant|username|login|pseudo)/, 'username'],
+    [/(organisation|entreprise|company|societe)/, 'organization'],
+    [/(code_?postal|zip|postal_?code|cp)/, 'postal-code'],
+    [/(ville|city|commune)/, 'address-level2'],
+    [/(pays|country)/, 'country-name'],
+    [/(adresse|address|rue|street)/, 'street-address'],
+  ];
+
+  for (const [motif, valeur] of correspondances) {
+    if (motif.test(nom)) return valeur;
+  }
+  return null;
+}
+
+/** Un identifiant qui ne collisionne avec aucun de ceux deja presents. */
+function identifiantLibre(base, pris) {
+  if (!pris.has(base)) return base;
+  for (let n = 2; n < 1000; n++) {
+    const candidat = `${base}-${n}`;
+    if (!pris.has(candidat)) return candidat;
+  }
+  return `${base}-${Date.now()}`;
+}
+
 export function planFixes(context, { only = null } = {}) {
   const plan = [];
 
