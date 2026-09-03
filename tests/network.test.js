@@ -473,3 +473,53 @@ test('crawl : les liens sortants sont regroupes par domaine', async () => {
   // Les domaines morts passent devant : ce sont eux qui demandent une action.
   if (domaines.length > 1) assert.ok(domaines[0].morts > 0);
 });
+
+test('CVE : la correction proposee est celle de la branche installee', async () => {
+  // Signale sur un projet Django reel. L'avis couvre trois branches
+  // maintenues en parallele ; Argus proposait la borne la plus basse, soit
+  // une *regression* de version majeure presentee comme un correctif. Et
+  // quand il n'en trouvait aucune, il conseillait de remplacer Django.
+  const avis = {
+    id: 'GHSA-multi',
+    summary: 'An issue was discovered in 6.0 before 6.0.4, 5.2 before 5.2.13, 4.2 before 4.2.30',
+    severity: 'critical',
+    aliases: ['CVE-2025-0001'],
+    affected: [{
+      package: { name: 'django', ecosystem: 'PyPI' },
+      ranges: [{
+        type: 'ECOSYSTEM',
+        events: [
+          { introduced: '4.2' }, { fixed: '4.2.30' },
+          { introduced: '5.2' }, { fixed: '5.2.13' },
+          { introduced: '6.0' }, { fixed: '6.0.4' },
+        ],
+      }],
+    }],
+  };
+
+  for (const [installee, attendu] of [['5.2.6', '5.2.13'], ['4.2.10', '4.2.30'], ['6.0.1', '6.0.4']]) {
+    const cache = {
+      packages: { [`PyPI:django@${installee}`]: { name: 'django', version: installee, ecosystem: 'PyPI', vulns: ['GHSA-multi'] } },
+      advisories: { 'GHSA-multi': avis },
+    };
+    const trouve = findVulnerabilities(cache, [
+      { name: 'django', version: installee, ecosystem: 'PyPI', exact: true, direct: true },
+    ]);
+
+    assert.equal(trouve[0]?.fixedIn, attendu, `installee ${installee}`);
+  }
+});
+
+test('CVE : sans version connue, on ne propose jamais une version inferieure', () => {
+  // Le seul resultat vraiment nuisible est de presenter une version ancienne
+  // comme un correctif.
+  const affecte = {
+    ranges: [{
+      type: 'ECOSYSTEM',
+      events: [{ introduced: '4.2' }, { fixed: '4.2.30' }, { introduced: '9.0' }, { fixed: '10.0.1' }],
+    }],
+  };
+
+  assert.equal(firstFixedVersion(affecte), '10.0.1', 'la plus haute, comparee comme une version');
+  assert.equal(firstFixedVersion(affecte, '4.2.1'), '4.2.30', 'la branche installee sinon');
+});

@@ -107,6 +107,10 @@ export const SECURITY_RULES = [
   // ------------------------------------------------------------------- XSS
   {
     id: 'SEC-INNERHTML',
+    // Le risque vient de la *donnee*, pas de `innerHTML` en soi. Une chaine
+    // litterale sans interpolation n'expose rien — et c'etait la totalite des
+    // constats sur un projet reel : `btn.innerHTML = '<i class="..."></i>'`.
+    fluxDeDonnees: true,
     title: 'Ecriture HTML non echappee (innerHTML)',
     severity: 'high',
     families: ['js'],
@@ -321,6 +325,20 @@ export const SECURITY_RULES = [
     families: ['python', 'php', 'jvm', 'dotnet'],
     raw: true,
     pattern: /\b(?:SESSION_COOKIE_SECURE|CSRF_COOKIE_SECURE|SESSION_COOKIE_HTTPONLY|CSRF_COOKIE_HTTPONLY|cookie_secure|session\.cookie_secure)\s*=\s*(?:False|false|0)\b/g,
+    /**
+     * Le meme reglage remis a `True` ailleurs dans le fichier decrit un
+     * defaut de developpement surcharge en production — le plus souvent dans
+     * un `if not DEBUG:`, qui est la facon recommandee en Django.
+     *
+     * Signale depuis le terrain : un projet correctement durci etait declare
+     * non durci, au rang le plus grave. La valeur qui compte est la derniere
+     * evaluee, pas la premiere ecrite.
+     */
+    ignoreIf: (ligne, file) => {
+      const reglage = /\b(SESSION_COOKIE_SECURE|CSRF_COOKIE_SECURE|SESSION_COOKIE_HTTPONLY|CSRF_COOKIE_HTTPONLY|cookie_secure)\b/.exec(ligne);
+      if (!reglage || !file?.content) return false;
+      return new RegExp(`\\b${reglage[1]}\\s*=\\s*(?:True|true|1)\\b`).test(file.content);
+    },
     message: 'Un drapeau de securite des cookies est explicitement desactive : le cookie de session peut circuler en HTTP ou etre lu par du JavaScript.',
     suggestion: 'Passez ces reglages a True en production. Pilotez-les par variable d\'environnement plutot que de les desactiver en dur.',
     cwe: 'CWE-614',

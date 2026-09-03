@@ -156,7 +156,18 @@ function graduerParLeFlux(file, rule, match, index, position) {
 
   // Le motif d'injection est paresseux : il s'arrete au premier signe de
   // concatenation et tronque l'identifiant. On elargit donc a l'instruction.
-  const debut = match.index;
+  //
+  // Pour une affectation, seul le cote droit compte : `btn.innerHTML = '<i>'`
+  // n'expose rien, mais lire toute la ligne y voyait `btn` — un parametre —
+  // et concluait a un risque. Sur un projet reel, c'etait la totalite des
+  // constats de cette regle.
+  const masqueComplet = maskedSource(file);
+  const finDeLigne = (() => {
+    const saut = masqueComplet.indexOf('\n', match.index);
+    return saut === -1 ? masqueComplet.length : saut;
+  })();
+  const affectation = /[^=!<>]=(?![=>])/.exec(masqueComplet.slice(match.index, finDeLigne));
+  const debut = affectation ? match.index + affectation.index + affectation[0].length : match.index;
   const finInstruction = (() => {
     for (let i = debut; i < file.content.length; i++) {
       const c = file.content[i];
@@ -167,12 +178,22 @@ function graduerParLeFlux(file, rule, match, index, position) {
 
   // Les identifiants sont cherches dans le code *masque* : les mots-cles SQL
   // vivent a l'interieur de la chaine et ne doivent pas etre resolus.
-  const masque = maskedSource(file).slice(debut, finInstruction);
+  const masque = masqueComplet.slice(debut, finInstruction);
   const identifiants = [];
   for (const m of matches(masque, /(?<![.\w$])[A-Za-z_$][\w$]*/g)) {
     identifiants.push({ nom: m[0], offset: debut + m.index });
   }
-  if (identifiants.length === 0) return {};
+  // Aucun identifiant dans la valeur affectee, alors que le code d'origine y
+  // contient quelque chose : c'est une expression purement litterale. Le
+  // masquage remplace les chaines par des espaces, il faut donc interroger le
+  // brut — sinon on confond « litteral » et « rien a dire ».
+  //
+  // C'est une conclusion, pas une absence de conclusion :
+  // `btn.innerHTML = '<i class="..."></i>'` n'expose rien.
+  if (identifiants.length === 0) {
+    const brut = file.content.slice(debut, finInstruction).trim().replace(/^[;,)}\]]+|[;,)}\]]+$/g, '');
+    return brut.length > 0 ? null : {};
+  }
 
   const origines = identifiants
     .map(({ nom, offset }) => {

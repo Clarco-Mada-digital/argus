@@ -1,5 +1,5 @@
 {
-  "date": "2026-09-03T05:30:39.715Z",
+  "date": "2026-09-03T17:57:52.504Z",
   "projets": [
     {
       "nom": "express",
@@ -9,12 +9,12 @@
         "web"
       ],
       "fichiers": 101,
-      "score": 77,
-      "total": 243,
-      "bloquants": 40,
+      "score": 78,
+      "total": 242,
+      "bloquants": 39,
       "parRegle": {
         "SEO-TITLE-MISSING": 5,
-        "A11Y-INPUT-NO-LABEL": 2,
+        "A11Y-INPUT-NO-LABEL": 1,
         "ROUTE-BROKEN-LINK": 3,
         "SEO-H1-MISSING": 5,
         "SEO-LANG-MISSING": 11,
@@ -61,7 +61,7 @@
       ],
       "fichiers": 290,
       "score": 70,
-      "total": 538,
+      "total": 537,
       "bloquants": 42,
       "parRegle": {
         "A11Y-INPUT-NO-LABEL": 1,
@@ -103,7 +103,6 @@
         "QUAL-DUPLICATION": 169,
         "QUAL-LONG-FUNCTION": 14,
         "ROUTE-UPPERCASE": 1,
-        "SEC-INNERHTML": 1,
         "SEO-THIN-CONTENT": 9,
         "SEO-HEADING-SKIP": 4,
         "SEO-IMG-NO-DIMENSIONS": 3,
@@ -164,14 +163,13 @@
         "web"
       ],
       "fichiers": 159,
-      "score": 79,
-      "total": 300,
-      "bloquants": 20,
+      "score": 82,
+      "total": 295,
+      "bloquants": 15,
       "parRegle": {
         "FLASK-SECRET-KEY-HARDCODED": 1,
         "SEC-ENV-COMMITTED": 1,
         "DEAD-DEBUG-INSTRUCTION-DEBUGGER": 1,
-        "A11Y-INPUT-NO-LABEL": 5,
         "FLASK-NO-CSRF": 1,
         "SEC-EVAL": 1,
         "SEC-WEAK-HASH": 1,
@@ -228,7 +226,7 @@
       ],
       "fichiers": 49,
       "score": 83,
-      "total": 36,
+      "total": 35,
       "bloquants": 11,
       "parRegle": {
         "DJANGO-SECRET-KEY-HARDCODED": 1,
@@ -247,7 +245,7 @@
         "SEO-CANONICAL-MISSING": 1,
         "SEO-OG-MISSING": 1,
         "SEO-STRUCTURED-DATA": 1,
-        "DEAD-IMPORT": 7,
+        "DEAD-IMPORT": 6,
         "DEP-NO-OSV-SYNC": 1,
         "A11Y-NO-SKIP-LINK": 1,
         "QUAL-NO-CI": 1,
@@ -303,14 +301,14 @@
       ],
       "fichiers": 414,
       "score": 70,
-      "total": 1108,
+      "total": 1025,
       "bloquants": 37,
       "parRegle": {
         "A11Y-INPUT-NO-LABEL": 16,
         "A11Y-NO-ACCESSIBLE-NAME": 2,
         "ROUTE-BROKEN-LINK": 4,
         "SEC-FUNCTION-CTOR": 8,
-        "SEC-INNERHTML": 125,
+        "SEC-INNERHTML": 42,
         "SEO-SPA-NO-SSR": 1,
         "SEO-SPA-SHARED-META": 1,
         "SEO-H1-MISSING": 2,

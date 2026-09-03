@@ -200,6 +200,8 @@ function reportFromOsv(cache, installed, context, report) {
   for (const [, items] of byPackage) {
     const worst = items.reduce((a, b) => (severityRank(b.advisory.severity) < severityRank(a.advisory.severity) ? b : a));
     const fixes = items.map((i) => i.fixedIn).filter(Boolean);
+    // Plusieurs avis sur le meme paquet : il faut la version qui les corrige
+    // tous, donc la plus haute des bornes — comparees comme des versions.
     const cible = fixes.length > 0 ? fixes.sort((a, b) => compareVersions(b, a) ?? 0)[0] : null;
     const identifiants = items.map((i) => i.advisory.aliases.find((a) => a.startsWith('CVE-')) || i.advisory.id);
 
@@ -220,7 +222,10 @@ function reportFromOsv(cache, installed, context, report) {
       suggestion: cible
         ? `Mettez a jour ${worst.package} vers ${cible} ou une version superieure, puis relancez vos tests.` +
           (worst.direct ? '' : ' Ce paquet est une dependance transitive : forcez la version (npm "overrides", pnpm "resolutions") ou mettez a jour le paquet parent.')
-        : `Aucun correctif publie a ce jour. Evaluez le remplacement du paquet, ou isolez son usage et surveillez ${identifiants[0]}.`,
+        : `L'avis ne nomme pas de version corrigee. Consultez ${identifiants[0]} : ` +
+          'la correction existe peut-etre sur une branche que l\'avis ne detaille pas, ' +
+          'ou le paquet attend encore un correctif. En attendant, restreignez l\'exposition ' +
+          'du code concerne et suivez l\'avis.',
       effort: worst.direct ? 'rapide' : 'moyen',
       confidence: worst.exact ? 'certain' : 'firm',
       tags: ['A06:2021', ...identifiants.slice(0, 2)],

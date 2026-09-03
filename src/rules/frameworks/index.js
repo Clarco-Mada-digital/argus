@@ -18,6 +18,7 @@ import tauri from './tauri.js';
 import electron from './electron.js';
 import manifestesNatifs from './manifestes-natifs.js';
 import ressourcesDistantes from './ressources-distantes.js';
+import jsonDansScript from './json-dans-script.js';
 import androidNatif from './android-natif.js';
 import iosNatif from './ios-natif.js';
 
@@ -40,5 +41,5 @@ export const FRAMEWORK_PACKS = [
   // Mobile et bureau
   reactNative, flutter, tauri, electron, androidNatif, iosNatif,
   // Transverse : ces pieges ne dependent pas du framework choisi.
-  variablesPubliques, manifestesNatifs, ressourcesDistantes,
+  variablesPubliques, manifestesNatifs, ressourcesDistantes, jsonDansScript,
 ];

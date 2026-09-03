@@ -42,10 +42,28 @@ export class ProjectContext {
   }
 
   /** Fichiers analysables (texte, non generes, hors tests si configure). */
+  /**
+   * Fichiers a analyser.
+   *
+   * `includeTests` est une *demande de l'analyseur*, pas une decision finale :
+   * la securite et le code mort veulent lire les tests, parce qu'un vrai
+   * secret dans un test reste un vrai secret. Mais quand l'utilisateur ecrit
+   * `includeTests: false` dans sa configuration, il donne une consigne
+   * explicite — et une consigne explicite l'emporte sur une preference
+   * d'analyseur.
+   *
+   * Sans cela, un projet qui excluait ses tests en voyait quand meme analyser
+   * trois, pour quinze pour cent de ses constats. Signale sur un projet reel.
+   */
   sources({ includeTests = this.config.includeTests, families = null, languages = null } = {}) {
+    // Une consigne explicite l'emporte sur la preference d'un analyseur ; un
+    // simple defaut se laisse surcharger.
+    const impose = this.config.explicites?.has('includeTests');
+    const testsAutorises = impose ? this.config.includeTests : includeTests;
+
     return this.files.filter((f) => {
       if (!f.readable) return false;
-      if (!includeTests && f.isTest) return false;
+      if (!testsAutorises && f.isTest) return false;
       if (families && !families.includes(f.family)) return false;
       if (languages && !languages.includes(f.language)) return false;
       return true;

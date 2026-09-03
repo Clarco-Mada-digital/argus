@@ -34,6 +34,16 @@ const DEFAULT_IGNORES = [
   '**/pnpm-lock.yaml',
   '**/argus-report.*',
   '**/.argus/**',
+  // Sorties de collecte et d'outillage Python, signalees depuis le terrain :
+  // `staticfiles/` est produit par `collectstatic`, personne ne l'edite.
+  '**/staticfiles/**',
+  '**/static_root/**',
+  '**/site-packages/**',
+  '**/.tox/**',
+  '**/htmlcov/**',
+  '**/.pytest_cache/**',
+  '**/.mypy_cache/**',
+  '**/.ruff_cache/**',
 ];
 
 export const DEFAULT_CONFIG = {
@@ -137,6 +147,23 @@ export function loadConfig(root, overrides = {}, configPath = null) {
 
   config.categories = config.categories.filter((id) => CATEGORY_IDS.includes(id));
   if (config.categories.length === 0) config.categories = [...CATEGORY_IDS];
+
+  /**
+   * Clefs posees explicitement par l'utilisateur.
+   *
+   * Certaines options ont une valeur par defaut que les analyseurs surchargent
+   * volontairement — `includeTests` en est le cas type : sa valeur par defaut
+   * est `false`, mais la securite et le code mort demandent quand meme a lire
+   * les tests, parce qu'un vrai secret dans un test reste un vrai secret.
+   *
+   * Il faut donc distinguer « personne n'a rien dit » de « l'utilisateur a
+   * ecrit non ». Une consigne explicite l'emporte ; un defaut se laisse
+   * surcharger.
+   */
+  Object.defineProperty(config, 'explicites', {
+    value: new Set([...Object.keys(fileConfig || {}), ...Object.keys(overrides || {})]),
+    enumerable: false,
+  });
 
   return config;
 }

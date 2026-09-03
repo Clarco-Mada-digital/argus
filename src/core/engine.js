@@ -247,7 +247,12 @@ function isSuppressedInSource(finding, context) {
     const texte = ligne.trim();
     if (texte === '') break;
     if (!EST_COMMENTAIRE.test(texte)) break;
-    if (/argus-disable-next-line/.test(texte)) return true;
+    // Les deux formes sont acceptees ici. Exiger `argus-disable-next-line`
+    // dans un bloc precedent et tolerer `argus-ignore` sur la ligne meme est
+    // une distinction que personne ne retient : la directive ne faisait alors
+    // rien, en silence, ce qui est le pire comportement possible pour une
+    // instruction explicite.
+    if (/argus-(?:ignore|disable(?:-next-line)?)\b/.test(texte)) return true;
   }
 
   return false;

@@ -11,6 +11,20 @@ import { t } from '../i18n/index.js';
  *  - systeme de design : coherence des couleurs, espacements, typographie,
  *    responsive, et signaux de dette CSS.
  */
+/**
+ * Le champ est-il contenu dans un `<label>` encore ouvert ?
+ *
+ * On remonte le texte en comptant les ouvertures et fermetures : un `<label>`
+ * non referme avant la position du champ l'enveloppe. C'est suffisant ici, et
+ * cela ne demande pas de construire un arbre.
+ */
+function estEnveloppeParUnLabel(source, position) {
+  const avant = source.slice(0, position);
+  const ouvertures = (avant.match(/<label\b/gi) || []).length;
+  const fermetures = (avant.match(/<\/label\s*>/gi) || []).length;
+  return ouvertures > fermetures;
+}
+
 export default {
   id: 'design',
   category: 'design',
@@ -18,9 +32,14 @@ export default {
   order: 50,
 
   async run(context, report) {
+    // Un fichier produit par un outil n'a pas d'auteur a qui reprocher son
+    // absence de points de rupture. Les autres analyseurs l'excluaient deja ;
+    // celui-ci l'oubliait, et c'est lui qui parle le plus des feuilles de style.
     const options = context.config.options.design;
-    const styleFiles = context.sources({ families: ['style'] });
-    const markupFiles = context.sources({ families: ['markup', 'js'] }).filter((f) => /<[a-z]/i.test(f.content));
+    const styleFiles = context.sources({ families: ['style'] }).filter((f) => !f.isGenerated);
+    const markupFiles = context
+      .sources({ families: ['markup', 'js'] })
+      .filter((f) => !f.isGenerated && /<[a-z]/i.test(f.content));
 
     const tokens = collectDesignTokens(styleFiles, context);
     context.shared.set('designTokens', {
@@ -313,7 +332,12 @@ function analyzeMarkup(file, options, report) {
         node.has('aria-label') ||
         node.has('aria-labelledby') ||
         node.has('title') ||
-        (node.id && new RegExp(`for\\s*=\\s*["']${node.id}["']`).test(file.content));
+        (node.id && new RegExp(`for\\s*=\\s*["']${node.id}["']`).test(file.content)) ||
+        // Un champ *contenu dans* son `<label>` est associe de facon
+        // parfaitement valide, sans `for` ni `id` — c'est meme la forme
+        // recommandee pour les cases a cocher. Signale depuis le terrain, ou
+        // cette forme representait une bonne part des constats.
+        estEnveloppeParUnLabel(file.content, node.start);
       if (!hasLabel && !node.isDynamic) {
         push({
           ruleId: 'A11Y-INPUT-NO-LABEL',

@@ -115,16 +115,52 @@ export function isAffected(version, affected) {
   return false;
 }
 
-/** Premiere version corrigee proposee par un avis, si elle existe. */
-export function firstFixedVersion(affected) {
-  const fixes = [];
+/**
+ * Version corrigee applicable, pour la branche ou se trouve l'installation.
+ *
+ * Un avis couvre souvent plusieurs branches maintenues en parallele :
+ * « 6.0 before 6.0.4, 5.2 before 5.2.13, 4.2 before 4.2.30 ». Les evenements
+ * OSV les enumerent dans une seule plage, par paires introduced/fixed.
+ *
+ * Rendre la plus basse conseillait a un projet en 5.2.6 de passer en 4.2.30 —
+ * une *regression* de version majeure presentee comme un correctif. Signale
+ * sur un projet reel, ou le message allait jusqu'a proposer de remplacer
+ * Django alors que le correctif etait ecrit dans l'avis.
+ *
+ * @param {object} affected entree `affected` d'un avis OSV
+ * @param {string} [versionInstallee] pour choisir la bonne branche
+ */
+export function firstFixedVersion(affected, versionInstallee = null) {
+  const paires = [];
+
   for (const range of affected?.ranges || []) {
+    if (range.type === 'GIT') continue;
+    let introduite = null;
     for (const event of range.events || []) {
-      if (event.fixed) fixes.push(event.fixed);
+      if (event.introduced) { introduite = event.introduced; continue; }
+      // `last_affected` est l'autre facon d'exprimer une borne : la version
+      // corrigee n'est alors pas nommee, mais la branche l'est.
+      const fixee = event.fixed ?? null;
+      if (fixee) paires.push({ introduite, fixee });
     }
   }
-  if (fixes.length === 0) return null;
-  return fixes.sort((a, b) => compareVersions(a, b) ?? 0)[0];
+
+  if (paires.length === 0) return null;
+
+  if (versionInstallee) {
+    // La branche qui contient l'installation : borne haute la plus proche
+    // au-dessus de la version installee.
+    const candidates = paires
+      .filter((p) => (compareVersions(versionInstallee, p.fixee) ?? -1) < 0)
+      .filter((p) => !p.introduite || (compareVersions(versionInstallee, p.introduite) ?? 1) >= 0)
+      .sort((a, b) => compareVersions(a.fixee, b.fixee) ?? 0);
+
+    if (candidates.length > 0) return candidates[0].fixee;
+  }
+
+  // Sans version connue, on propose la plus haute : conseiller une version
+  // ancienne comme « correctif » est le seul resultat vraiment nuisible.
+  return paires.map((p) => p.fixee).sort((a, b) => compareVersions(b, a) ?? 0)[0];
 }
 
 /**

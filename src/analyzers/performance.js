@@ -187,6 +187,149 @@ function analyzeFonts(context, report) {
   }
 }
 
+/**
+ * Detection du N+1 en Python, par indentation.
+ *
+ * Signale par un projet Django reel, et c'etait le defaut le plus couteux de
+ * l'outil : apres avoir corrige un vrai N+1 — 125 requetes ramenees a 34 —
+ * le score de performance *baissait*. Le correctif canonique consiste a
+ * hisser la requete avant la boucle et a ranger le resultat dans un
+ * dictionnaire ; le motif textuel voyait « une boucle, puis un appel base »
+ * et concluait au probleme. L'outil decourageait exactement le bon geste.
+ *
+ * En Python, etre « dans » une boucle se decide a l'indentation, et rien
+ * d'autre. Deux consequences :
+ *
+ *   - une requete moins indentee que le `for` est **apres** la boucle ;
+ *   - une requete sur la ligne du `for` est l'iterable lui-meme, evalue une
+ *     seule fois — c'est meme la forme correcte.
+ */
+const ACCES_BASE = /\.objects\.(?:get|filter|all|first|count|exists|aggregate)\s*\(|\bsession\.(?:query|execute)\s*\(|\bcursor\.execute\s*\(|\.find_by_\w+\s*\(|\b[A-Z]\w*\.(?:find|find_by|where|first)\s*\(/;
+
+/** Le `for` d'une comprehension tient sur la meme ligne que son ouverture. */
+function estUneComprehension(ligne) {
+  return /[[{(][^\]})]*\bfor\b/.test(ligne);
+}
+
+function indentationDe(ligne) {
+  let n = 0;
+  for (const c of ligne) {
+    if (c === ' ') n++;
+    else if (c === '\t') n += 4;
+    else break;
+  }
+  return n;
+}
+
+/**
+ * Fin du corps d'une boucle Ruby, par comptage de `do`/`end`.
+ *
+ * L'indentation ne fait pas foi en Ruby : c'est une convention, pas une regle
+ * du langage. Le piege habituel est la forme suffixe (`x if y`), qui n'ouvre
+ * aucun bloc et ne se ferme donc par aucun `end` — d'ou la distinction entre
+ * un mot-cle en tete d'instruction et le meme mot-cle en fin de ligne.
+ */
+const OUVRE_UN_BLOC = /^(?:if|unless|while|until|case|begin|def|class|module|for)\b/;
+
+function deltaDeProfondeur(ligne) {
+  const nu = ligne.replace(/#.*$/, '').trim();
+  let delta = 0;
+
+  // `do` ouvre toujours un bloc, ou qu'il soit sur la ligne.
+  delta += (nu.match(/\bdo\b/g) || []).length;
+  if (OUVRE_UN_BLOC.test(nu)) delta++;
+  // `x = if …`, `x = case …` : la forme affectation ouvre aussi.
+  if (/=\s*(?:if|unless|case|begin)\b/.test(nu)) delta++;
+  // `.end` est un appel de methode, pas une fermeture.
+  delta -= (nu.match(/(?<!\.)\bend\b/g) || []).length;
+
+  return delta;
+}
+
+/** Le constat lui-meme, commun aux dialectes : seul le remede differe. */
+function signalerNPlusUn(file, report, index, trouves) {
+  if (trouves.length === 0) return;
+
+  report({
+    ruleId: 'PERF-NESTED-LOOP-QUERY',
+    severity: 'high',
+    title: 'Requete dans une boucle (probleme N+1)',
+    message:
+      `Une requete par element : le nombre d'appels a la base croit lineairement avec les donnees.` +
+      (trouves.length > 1 ? ` (${trouves.length} occurrences dans ce fichier)` : ''),
+    file: file.relativePath,
+    line: trouves[0].ligne,
+    snippet: trouves[0].texte,
+    suggestion:
+      file.family === 'ruby'
+        ? 'Chargez tout en une fois avec includes() ou preload() sur la relation. ' +
+          'Sinon, une requete avant la boucle et un Hash indexe par identifiant.'
+        : 'Chargez tout en une fois. Avec Django : select_related() pour une clef etrangere, ' +
+          'prefetch_related() pour une relation inverse ou many-to-many. Sinon, une requete ' +
+          'avant la boucle et un dictionnaire indexe par identifiant.',
+    effort: 'moyen',
+    confidence: 'firm',
+    data: { count: trouves.length },
+  });
+}
+
+function detecterNPlusUnRuby(file, report) {
+  const lignes = file.lines;
+  const index = lineIndexFor(file);
+  const trouves = [];
+
+  for (let i = 0; i < lignes.length; i++) {
+    // `.each do |x|`, `.map do`, `.each_with_index do` : la forme bloc.
+    if (!/\.(?:each|each_with_index|each_with_object|map|collect|select|reject|flat_map)\b[^#]*\bdo\b/.test(lignes[i])) continue;
+
+    let profondeur = deltaDeProfondeur(lignes[i]);
+    for (let k = i + 1; k < lignes.length && profondeur > 0; k++) {
+      const suivante = lignes[k];
+      if (ACCES_BASE.test(suivante)) {
+        trouves.push({ ligne: k + 1, texte: suivante.trim() });
+        break;
+      }
+      profondeur += deltaDeProfondeur(suivante);
+    }
+  }
+
+  signalerNPlusUn(file, report, index, trouves);
+}
+
+function detecterNPlusUnPython(file, report) {
+  const lignes = file.lines;
+  const index = lineIndexFor(file);
+  const trouves = [];
+
+  // argus-ignore PERF-NESTED-LOOP-QUERY : cette boucle *cherche* le motif,
+  // elle ne l'applique pas. C'est du parcours de lignes, sans base de donnees.
+  for (let i = 0; i < lignes.length; i++) {
+    const ligne = lignes[i];
+    const boucle = /^\s*(?:async\s+)?for\s+[\w\s,()]+\s+in\s+.+:\s*(?:#.*)?$/.exec(ligne);
+    if (!boucle) continue;
+    // `for c in Modele.objects.filter(...)` : la requete *est* l'iterable.
+    // Elle s'execute une fois, ce qui est precisement ce qu'on recommande.
+    if (estUneComprehension(ligne)) continue;
+
+    const indentBoucle = indentationDe(ligne);
+
+    for (let k = i + 1; k < lignes.length; k++) {
+      const suivante = lignes[k];
+      if (!suivante.trim()) continue;
+      // Retour au niveau de la boucle ou au-dessus : on en est sorti.
+      if (indentationDe(suivante) <= indentBoucle) break;
+      // Une comprehension dans le corps reste une requete unique.
+      if (estUneComprehension(suivante)) continue;
+      if (!ACCES_BASE.test(suivante)) continue;
+
+      trouves.push({ ligne: k + 1, texte: suivante.trim() });
+      break; // un constat par boucle suffit
+    }
+  }
+
+  signalerNPlusUn(file, report, index, trouves);
+}
+
 function analyzeCodePatterns(context, report) {
   const patterns = [
     {
@@ -206,24 +349,14 @@ function analyzeCodePatterns(context, report) {
       // objets de connexion, et les ORM « par convention » (Django, Rails,
       // Eloquent) ou l'appel ne porte aucun de ces noms.
       re: /for\s*[^{]*\{[^}]{0,300}?\.(findOne|findById|findUnique|findMany|queryRow|fetchOne|fetchAll|executeQuery|aggregate)\s*\(|for\s*[^{]*\{[^}]{0,300}?\b(?:db|conn|connection|session|cursor|repository|repo|prisma|knex|orm)\b[^;{}]{0,60}\.(query|execute|find|get|select|insert|update|delete|save)\s*\(|for\s*[^{]*\{[^}]{0,300}?\.objects\.(get|filter|all|first|count|exists)\s*\(|for(?:each)?\s*\([^{]*\{[^}]{0,300}?(?:->|::)(?:find|first|firstOrFail|findOrFail|where)\s*\(/g,
-      families: ['js', 'python', 'php', 'jvm'],
+      // Python est traite par `detecterNPlusUnPython`, qui raisonne sur
+      // l'indentation : le laisser ici ferait remonter deux fois le meme
+      // constat, dont une fois a tort.
+      families: ['js', 'php', 'jvm'],
       severity: 'high',
       title: 'Requete dans une boucle (probleme N+1)',
       message: 'Une requete par element : le nombre d\'appels a la base croit lineairement avec les donnees.',
       suggestion: 'Chargez tout en une requete (WHERE id IN (…), jointure, ou eager loading de l\'ORM) puis regroupez en memoire.',
-    },
-    {
-      // Python et Ruby n'ont pas d'accolades : la boucle se delimite par
-      // l'indentation. Il faut donc un motif distinct de celui des langages
-      // a accolades, sinon aucun N+1 Django ou Rails n'est jamais vu.
-      id: 'PERF-NESTED-LOOP-QUERY',
-      re: /(?:\bfor\s+\w+\s+in\s+[^\n]+:|\.each\s+do\s*\|[^|]*\|)[^\n]*\n(?:[^\n]*\n){0,12}?[ \t]+[^\n]*(?:\.objects\.(?:get|filter|all|first|count|exists)|\.query\(|session\.(?:query|execute)|cursor\.execute|\.find_by_\w+|\.where\(|\b[A-Z]\w*\.(?:find|find_by|where|first)\()/g,
-      families: ['python', 'ruby'],
-      severity: 'high',
-      title: 'Requete dans une boucle (probleme N+1)',
-      message: 'Une requete par element : le nombre d\'appels a la base croit lineairement avec les donnees.',
-      suggestion:
-        'Chargez tout en une fois. Avec Django : select_related() pour une cle etrangere, prefetch_related() pour une relation inverse ou many-to-many. Avec SQLAlchemy : joinedload(). Avec Rails : includes().',
     },
     {
       id: 'PERF-DOM-IN-LOOP',
@@ -278,6 +411,12 @@ function analyzeCodePatterns(context, report) {
 
   for (const file of context.sources()) {
     if (!file.readable) continue;
+    // L'appartenance a une boucle se decide a l'indentation en Python : un
+    // motif textuel ne peut pas la voir, et signalait le correctif canonique
+    // du N+1 aussi bien que le probleme.
+    if (file.family === 'python') detecterNPlusUnPython(file, report);
+    if (file.family === 'ruby') detecterNPlusUnRuby(file, report);
+
     for (const pattern of patterns) {
       if (!pattern.families.includes('*') && !pattern.families.includes(file.family)) continue;
       if (pattern.ignoreIf && pattern.ignoreIf(file)) continue;

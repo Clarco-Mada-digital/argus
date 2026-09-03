@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { cvssBaseScore, firstFixedVersion, isAffected, severityFromScore } from './semver.js';
+import { compareVersions, cvssBaseScore, firstFixedVersion, isAffected, severityFromScore } from './semver.js';
 
 /**
  * Client OSV.dev — la base de vulnerabilites open source de Google, qui agrege
@@ -179,7 +179,14 @@ export function findVulnerabilities(cache, packages) {
       const stillAffected = matching.length === 0 || matching.some((a) => isAffected(pkg.version, a));
       if (!stillAffected) continue;
 
-      const fixedIn = matching.map(firstFixedVersion).filter(Boolean).sort()[0] || null;
+      // `.sort()` par defaut compare des chaines : « 10.0.0 » y precede
+      // « 9.0.0 ». Et sans la version installee, la branche choisie pouvait
+      // etre inferieure a celle du projet.
+      const fixedIn =
+        matching
+          .map((entree) => firstFixedVersion(entree, pkg.version))
+          .filter(Boolean)
+          .sort((a, b) => compareVersions(a, b) ?? 0)[0] || null;
       findings.push({ package: pkg.name, version: pkg.version, ecosystem: pkg.ecosystem, exact: pkg.exact, direct: pkg.direct, advisory, fixedIn });
     }
   }

@@ -68,6 +68,37 @@ test('rails : N+1 detecte malgre la syntaxe .each do |x|', () => {
   assert.ok(regles.has('PERF-NESTED-LOOP-QUERY'));
 });
 
+test('rails : la requete hoistee avant la boucle n\'est pas un N+1', () => {
+  // Le correctif canonique du N+1 : une requete, puis un index en memoire.
+  // Le compter comme un defaut decourage exactement le bon geste. En Ruby la
+  // sortie de bloc se decide au `end`, pas a l'indentation.
+  const source = [
+    'class RapportsController < ApplicationController',
+    '  def index',
+    '    auteurs = Utilisateur.where(id: @articles.map(&:utilisateur_id)).index_by(&:id)',
+    '    @articles.each do |article|',
+    '      puts auteurs[article.utilisateur_id].nom',
+    '    end',
+    '    total = Article.count(:all)',
+    '  end',
+    'end',
+  ].join('\n');
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'argus-rails-hoist-'));
+  fs.writeFileSync(path.join(dir, 'Gemfile'), "source 'https://rubygems.org'\ngem 'rails'\n");
+  fs.mkdirSync(path.join(dir, 'app', 'controllers'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'app', 'controllers', 'rapports_controller.rb'), source);
+
+  return scan(dir, { noHistory: true }).then((rapport) => {
+    assert.deepEqual(
+      rapport.findings.filter((f) => f.ruleId === 'PERF-NESTED-LOOP-QUERY'),
+      [],
+      'ni la requete d\'avant la boucle ni celle d\'apres ne sont dedans',
+    );
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+});
+
 test('rails : redirection ouverte sans parentheses', () => {
   assert.ok(regles.has('SEC-OPEN-REDIRECT'), 'redirect_to params[:retour]');
 });
