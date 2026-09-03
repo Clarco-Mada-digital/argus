@@ -9,6 +9,7 @@ import { cvssBaseScore, compareVersions, isAffected, minimumSatisfying, severity
 import { resolveInstalledVersions } from '../src/core/lockfiles.js';
 import { findVulnerabilities, keyOf } from '../src/core/osv.js';
 import { crawl, parseRobots, isDisallowed } from '../src/crawler/index.js';
+import { Engine } from '../src/core/engine.js';
 import { applyEdits, planFixes, FIXERS, renderDiff } from '../src/cli/fix.js';
 import { scan } from '../src/index.js';
 import { loadConfig } from '../src/core/config.js';
@@ -385,4 +386,90 @@ test('crawl : robots.txt est respecte', async () => {
   } finally {
     server.close();
   }
+});
+
+/** Petit site multi-pages servi en memoire, avec des liens morts voulus. */
+function servirUnSite() {
+  const pages = {
+    '/': '<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Accueil</title></head><body><h1>Accueil</h1>'
+      + '<a href="/a-propos.html">A propos</a><a href="/supprimee.html">Ancienne</a>'
+      + '<a href="http://127.0.0.1:1/">Partenaire</a></body></html>',
+    '/a-propos.html': '<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>A propos</title></head>'
+      + '<body><h1>A propos</h1><a href="/contact.html">Contact</a></body></html>',
+  };
+
+  return http.createServer((requete, reponse) => {
+    const chemin = new URL(requete.url, 'http://x').pathname;
+    const corps = pages[chemin];
+    if (!corps) {
+      reponse.writeHead(404, { 'Content-Type': 'text/html' });
+      reponse.end('<html><body>introuvable</body></html>');
+      return;
+    }
+    reponse.writeHead(200, { 'Content-Type': 'text/html' });
+    reponse.end(corps);
+  });
+}
+
+test('crawl : l\'inventaire dit ce qui a ete visite, pas seulement combien', async () => {
+  // « 10 pages explorees » ne permet pas de verifier la couverture : la
+  // question « a-t-il vu mes pages produits ? » restait sans reponse.
+  const serveur = servirUnSite();
+  await new Promise((r) => serveur.listen(0, '127.0.0.1', r));
+  const base = `http://127.0.0.1:${serveur.address().port}/`;
+
+  const config = loadConfig(os.tmpdir(), {
+    crawl: base,
+    categories: ['routes', 'seo', 'security', 'performance'],
+    noHistory: true,
+    crawlOptions: { maxPages: 10, delayMs: 0, checkExternal: true },
+  });
+  const rapport = await new Engine(config).run();
+  serveur.close();
+
+  const inventaire = rapport.insights?.crawl?.inventaire;
+  assert.ok(inventaire, "l'inventaire doit accompagner tout crawl");
+
+  const chemins = inventaire.pages.map((p) => p.chemin);
+  assert.ok(chemins.includes('/'), "l'accueil doit apparaitre");
+  assert.ok(chemins.includes('/a-propos.html'), 'une page interne doit avoir ete visitee');
+  assert.ok(chemins.length >= 3, `seulement ${chemins.length} pages inventoriees`);
+
+  // Une page en erreur doit dire *d'ou* elle est liee : c'est la page source
+  // qu'il faut corriger, pas la page absente.
+  const morte = inventaire.pages.find((p) => p.statut === 404);
+  assert.ok(morte, 'le lien mort doit figurer dans l\'inventaire');
+  assert.ok(morte.depuis, 'la page qui porte le lien doit etre nommee');
+
+  // Les pages sont classees par profondeur : on lit le site comme on le
+  // parcourt, pas dans l'ordre arbitraire de la file d'attente.
+  const profondeurs = inventaire.pages.map((p) => p.profondeur);
+  assert.deepEqual(profondeurs, [...profondeurs].sort((a, b) => a - b));
+});
+
+test('crawl : les liens sortants sont regroupes par domaine', async () => {
+  // Ce qui compte pour le referencement n'est pas « ce lien-ci existe » mais
+  // « voila a qui ce site adresse son autorite, et combien de fois ».
+  const serveur = servirUnSite();
+  await new Promise((r) => serveur.listen(0, '127.0.0.1', r));
+  const base = `http://127.0.0.1:${serveur.address().port}/`;
+
+  const config = loadConfig(os.tmpdir(), {
+    crawl: base,
+    categories: ['routes', 'seo'],
+    noHistory: true,
+    crawlOptions: { maxPages: 10, delayMs: 0, checkExternal: true },
+  });
+  const rapport = await new Engine(config).run();
+  serveur.close();
+
+  const domaines = rapport.insights?.crawl?.inventaire?.domaines ?? [];
+  const partenaire = domaines.find((d) => d.domaine.includes('127.0.0.1:1'));
+
+  assert.ok(partenaire, 'le domaine externe doit etre inventorie');
+  assert.equal(partenaire.morts, 1, 'un domaine injoignable doit etre compte comme mort');
+  assert.ok(partenaire.sources.includes('/'), 'la page qui porte le lien doit etre nommee');
+
+  // Les domaines morts passent devant : ce sont eux qui demandent une action.
+  if (domaines.length > 1) assert.ok(domaines[0].morts > 0);
 });

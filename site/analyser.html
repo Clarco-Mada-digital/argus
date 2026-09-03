@@ -92,6 +92,16 @@
   </section>
 
   <section id="mode-page" role="tabpanel" aria-labelledby="ong-page" hidden>
+    <div class="encart">
+      <strong>Ici, une seule page.</strong> Ce mode analyse la page dont vous donnez l'adresse,
+      pas le site entier : un onglet ne peut pas explorer les pages internes d'un autre domaine.
+      Pour <b>visiter tout le site</b>, suivre ses liens et trouver les liens morts o&#249; qu'ils
+      soient, la commande le fait :
+      <code>npx github:Clarco-Mada-digital/argus crawl https://exemple.com</code>
+      &#8212; elle explore jusqu'&#224; 50 pages, v&#233;rifie les liens sortants et dresse
+      l'inventaire de ce qu'elle a vu.
+    </div>
+
     <div class="encart encart-limite">
       <strong>Ce que le navigateur autorise, et ce qu'il refuse.</strong>
       Une page ouverte dans un onglet ne peut pas lire librement un autre site : le navigateur

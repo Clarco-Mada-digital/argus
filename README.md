@@ -469,6 +469,42 @@ Les annotations inline (`::error file=…`) complètent le commentaire : les pro
 
 `--since main` sur un dépôt dont la branche s'appelle `master` renvoyait **« 0 fichier modifié »**. L'auteur en aurait conclu que son changement était propre, alors que rien n'avait été comparé. Une référence inexistante est maintenant une erreur explicite, qui liste les branches disponibles.
 
+## `argus crawl` : explorer tout le site, et inventorier ce qu'on y trouve
+
+```bash
+argus crawl https://exemple.com
+```
+
+Le crawl **suit les liens** — jusqu'à 50 pages en profondeur 4 par défaut, `robots.txt` respecté, 150 ms entre les requêtes. Il ne s'arrête pas à l'accueil.
+
+```
+  PAGES EXPLOREES  10 · 4 en erreur
+
+    200 d0  /                              Accueil boutique
+    200 d1  /a-propos.html                 A propos
+    404 d1  /page-supprimee.html           ← lie depuis /
+    404 d2  /contact.html                  ← lie depuis /a-propos.html
+    404 d3  /lien-mort.html                ← lie depuis /blog/article-2.html
+
+  LIENS SORTANTS  3 domaine(s) · 1 injoignable(s)
+
+  ✖ exemple-inexistant-xyz123.test  1 lien   depuis /
+    developer.mozilla.org           1 lien   depuis /
+    github.com                      1 lien   depuis /blog/article-1.html
+```
+
+Deux ajouts qui changent l'usage :
+
+**Pour chaque page en erreur, la page qui la lie.** C'est la seule information qui permet de corriger : la page absente n'est pas modifiable, celle qui pointe vers elle l'est.
+
+**Les liens sortants groupés par domaine.** Ce qui compte pour le référencement n'est pas « ce lien-ci existe » mais **à qui ce site adresse son autorité, et combien de fois**. Un domaine cité trente fois se remarque ; trente lignes séparées non. Les domaines injoignables passent devant — ce sont eux qui demandent une action.
+
+Les pages sont classées par profondeur : on lit le site comme on le parcourt. `--tout` pour la liste complète sur un grand site.
+
+### Ce que le navigateur ne peut pas faire
+
+La page « Analyser » du site en ligne traite **une seule page** : un onglet ne peut pas explorer les pages internes d'un autre domaine, et un serveur intermédiaire recevrait votre adresse. C'est la commande, et elle seule, qui parcourt un site.
+
 ## `argus fuites` : les secrets que l'historique garde
 
 Argus dit, pour chaque secret trouvé dans le code : *« elle doit être considérée comme compromise dès lors qu'elle a été versionnée »*. Il était pourtant incapable de dire **lesquelles** l'avaient été — il ne lisait que l'arbre de travail.

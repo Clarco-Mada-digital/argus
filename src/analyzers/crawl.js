@@ -60,7 +60,72 @@ function resumer(resultat) {
     ttfbMedian: mediane(pages.filter((p) => p.ttfb).map((p) => p.ttfb)),
     durationMs: resultat.durationMs,
     tronque: resultat.truncated,
+    inventaire: inventorier(resultat),
   };
+}
+
+/**
+ * Inventaire de ce qui a ete visite et de ce vers quoi le site pointe.
+ *
+ * Un compte agrege — « 10 pages explorees » — ne permet pas de verifier la
+ * couverture : l'utilisateur ne sait pas *lesquelles*, et se demande a juste
+ * titre si ses pages produits ont ete vues. La liste repond a la question.
+ *
+ * Les liens sortants sont regroupes par domaine plutot que listes un a un.
+ * Ce qui compte pour le referencement n'est pas « ce lien-ci existe » mais
+ * « voila a qui ce site adresse son autorite, et combien de fois » — un
+ * domaine cite trente fois se remarque, trente lignes separees non.
+ */
+function inventorier(resultat) {
+  const pages = resultat.pages
+    .map((page) => ({
+      url: page.url,
+      chemin: cheminDe(page.url, resultat.origin),
+      statut: page.status ?? null,
+      profondeur: page.depth ?? 0,
+      titre: page.seo?.title || null,
+      // D'ou vient le lien : indispensable pour corriger une page en erreur,
+      // puisque c'est la page *source* qu'il faut modifier.
+      depuis: page.from ? cheminDe(page.from, resultat.origin) : null,
+      erreur: page.error || null,
+    }))
+    .sort((a, b) => a.profondeur - b.profondeur || a.chemin.localeCompare(b.chemin));
+
+  const parDomaine = new Map();
+  for (const lien of resultat.external) {
+    let domaine = lien.url;
+    try {
+      domaine = new URL(lien.url).host;
+    } catch {
+      /* URL non analysable : on garde la chaine telle quelle */
+    }
+
+    if (!parDomaine.has(domaine)) {
+      parDomaine.set(domaine, { domaine, liens: 0, morts: 0, sources: new Set(), exemples: [] });
+    }
+    const groupe = parDomaine.get(domaine);
+    groupe.liens++;
+    if (!lien.ok) groupe.morts++;
+    for (const source of lien.sources || []) groupe.sources.add(cheminDe(source, resultat.origin));
+    if (groupe.exemples.length < 3) groupe.exemples.push({ url: lien.url, statut: lien.status ?? null, ok: lien.ok });
+  }
+
+  const domaines = [...parDomaine.values()]
+    .map((g) => ({ ...g, sources: [...g.sources] }))
+    // Les domaines morts d'abord — ce sont eux qui demandent une action —
+    // puis les plus cites, qui pesent le plus dans le maillage sortant.
+    .sort((a, b) => b.morts - a.morts || b.liens - a.liens);
+
+  return { pages, domaines };
+}
+
+function cheminDe(url, origin) {
+  try {
+    const analysee = new URL(url);
+    return analysee.origin === origin ? analysee.pathname + analysee.search : url;
+  } catch {
+    return url;
+  }
 }
 
 function verifierStatuts(resultat, report) {

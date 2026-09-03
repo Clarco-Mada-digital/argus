@@ -682,6 +682,87 @@ function printNonAutomatisable() {
  * `argus crawl <url>` : exploration seule, sans code source a analyser.
  * Utile pour auditer un site en ligne dont on n'a pas les sources.
  */
+/**
+ * Inventaire de l'exploration : ce qui a ete visite, et vers quoi le site
+ * pointe.
+ *
+ * « 10 pages explorees » ne permet pas de verifier la couverture : on ne sait
+ * pas *lesquelles*, et la question « a-t-il vu mes pages produits ? » reste
+ * sans reponse. La liste y repond, et elle est le premier interet d'un crawl.
+ *
+ * Les liens sortants sont groupes par domaine : ce qui compte pour le
+ * referencement n'est pas « ce lien-ci existe » mais « voila a qui ce site
+ * adresse son autorite, et combien de fois ».
+ */
+function renderInventaire(inventaire, options = {}) {
+  if (!inventaire) return '';
+
+  const tout = Boolean(options.tout || options.verbose);
+  const maxPages = tout ? Infinity : 25;
+  const maxDomaines = tout ? Infinity : 15;
+  const lignes = [];
+
+  const pages = inventaire.pages || [];
+  if (pages.length > 0) {
+    const enErreur = pages.filter((p) => p.statut && p.statut >= 400).length;
+    lignes.push(
+      '',
+      `  ${color.bold('PAGES EXPLOREES')}  ${color.dim(`${pages.length}${enErreur ? ` · ${enErreur} en erreur` : ''}`)}`,
+      '',
+    );
+
+    const largeur = Math.min(42, Math.max(...pages.slice(0, maxPages).map((p) => p.chemin.length)));
+    for (const page of pages.slice(0, maxPages)) {
+      const enErreurCette = page.statut && page.statut >= 400;
+      const statut = page.erreur
+        ? color.red('  ✖ ')
+        : enErreurCette
+          ? color.red(String(page.statut).padStart(5))
+          : color.dim(String(page.statut ?? '—').padStart(5));
+
+      // Pour une page en erreur, c'est la page *source* qu'il faut corriger :
+      // afficher son titre d'erreur n'apprendrait rien.
+      const detail = enErreurCette || page.erreur
+        ? color.dim(page.depuis ? `← lie depuis ${page.depuis}` : '')
+        : color.dim(page.titre || '');
+
+      lignes.push(`  ${statut} ${color.dim(`d${page.profondeur}`)}  ${tronquer(page.chemin, largeur).padEnd(largeur)}  ${detail}`);
+    }
+    if (pages.length > maxPages) {
+      lignes.push(color.dim(`        …et ${pages.length - maxPages} autre(s) — --tout pour la liste complete`));
+    }
+  }
+
+  const domaines = inventaire.domaines || [];
+  if (domaines.length > 0) {
+    const morts = domaines.filter((d) => d.morts > 0).length;
+    lignes.push(
+      '',
+      `  ${color.bold('LIENS SORTANTS')}  ${color.dim(`${domaines.length} domaine(s)${morts ? ` · ${morts} injoignable(s)` : ''}`)}`,
+      '',
+    );
+
+    const largeur = Math.min(38, Math.max(...domaines.slice(0, maxDomaines).map((d) => d.domaine.length)));
+    for (const domaine of domaines.slice(0, maxDomaines)) {
+      const marque = domaine.morts > 0 ? color.red('  ✖') : '   ';
+      const compte = `${domaine.liens} lien${domaine.liens > 1 ? 's' : ''}`;
+      const sources = domaine.sources.slice(0, 2).join(', ') + (domaine.sources.length > 2 ? `, +${domaine.sources.length - 2}` : '');
+      lignes.push(
+        `${marque} ${tronquer(domaine.domaine, largeur).padEnd(largeur)}  ${color.dim(compte.padEnd(9))}${color.dim(`depuis ${sources}`)}`,
+      );
+    }
+    if (domaines.length > maxDomaines) {
+      lignes.push(color.dim(`        …et ${domaines.length - maxDomaines} autre(s) domaine(s)`));
+    }
+  }
+
+  return lignes.length > 0 ? `${lignes.join('\n')}\n` : '';
+}
+
+function tronquer(texte, largeur) {
+  return texte.length <= largeur ? texte : `${texte.slice(0, largeur - 1)}…`;
+}
+
 async function runCrawl(target, options) {
   const url = target && /^https?:\/\//.test(target) ? target : options.crawl;
   if (!url || url === true) {
@@ -729,6 +810,7 @@ async function runCrawl(target, options) {
         (resume.liensExternesMorts > 0 ? color.red(`, ${resume.liensExternesMorts} morts`) : '') + '\n' +
         `  ${color.dim('Reponse mediane')}   ${resume.ttfbMedian ?? '—'} ms\n`,
     );
+    process.stdout.write(renderInventaire(resume.inventaire, options));
   }
 
   writeOutputs(result, options, config);
