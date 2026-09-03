@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { scan } from '../src/index.js';
+import { renderReport } from '../src/report/terminal.js';
 
 /**
  * Defauts remontes par une equipe apres usage sur un ERP Django en production
@@ -158,4 +159,57 @@ test('terrain : un defaut de developpement surcharge en production', async () =>
   const rapport2 = await scan(sansSurcharge, { noHistory: true });
   assert.ok(rapport2.findings.some((f) => f.ruleId === 'SEC-SECURE-FLAG-OFF'));
   fs.rmSync(sansSurcharge, { recursive: true, force: true });
+});
+
+test('terrain : un constat critique n\'est jamais tronque', async () => {
+  // « 820 probleme(s) non affiches » masquait leur unique constat critique :
+  // le budget d'affichage se consommait dans l'ordre des categories, et la
+  // sienne venait tard.
+  const bruit = Array.from(
+    { length: 80 },
+    (_, i) => `<div><img src="i${i}.png"><input type="text" name="f${i}"></div>`,
+  ).join('\n');
+
+  const dir = projetDjango({
+    'page.html': bruit,
+    'monsite/secrets.py': 'AWS_SECRET_ACCESS_KEY = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"\n',
+  });
+
+  const rapport = await scan(dir, { noHistory: true });
+  const critiques = rapport.findings.filter((f) => f.severity === 'critical');
+  assert.ok(critiques.length > 0, 'le decor du test doit produire un critique');
+
+  const sortie = renderReport(rapport);
+  for (const constat of critiques) {
+    assert.ok(
+      sortie.includes(constat.ruleId),
+      `${constat.ruleId} doit apparaitre malgre la troncature`,
+    );
+  }
+
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('terrain : le rapport dit sur quelle base la veille a conclu', async () => {
+  // Deux scans consecutifs, sans toucher aux dependances, avaient donne 2 puis
+  // 8 constats : la synchronisation OSV s'etait faite en silence entre les
+  // deux. Un score qui bouge sans que le code bouge fait douter du reste.
+  const dir = projetDjango({});
+
+  const sans = await scan(dir, { noHistory: true });
+  assert.equal(sans.veille.source, 'embarquee');
+  assert.match(renderReport(sans), /liste embarquee/);
+
+  fs.mkdirSync(path.join(dir, '.argus'), { recursive: true });
+  fs.writeFileSync(
+    path.join(dir, '.argus', 'osv-cache.json'),
+    JSON.stringify({ generatedAt: new Date().toISOString(), packages: { 'PyPI:django@5.2.6': [] } }),
+  );
+
+  const avec = await scan(dir, { noHistory: true });
+  assert.equal(avec.veille.source, 'osv');
+  assert.equal(avec.veille.entrees, 1);
+  assert.match(renderReport(avec), /base OSV, 1 paquet/);
+
+  fs.rmSync(dir, { recursive: true, force: true });
 });

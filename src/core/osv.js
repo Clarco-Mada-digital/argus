@@ -38,6 +38,26 @@ export function readCache(root) {
   }
 }
 
+/**
+ * Sur quelle base la veille a conclu.
+ *
+ * Une equipe a vu deux scans consecutifs, sans toucher aux dependances, donner
+ * 2 puis 8 constats — la synchronisation OSV s'etait faite entre les deux, en
+ * silence. Un score qui bouge sans que le code bouge fait douter de tout le
+ * reste du rapport ; la seule reponse est de dire ce qui a servi de reference.
+ */
+export function etatDeLaVeille(root) {
+  const cache = readCache(root);
+  if (!cache) return { source: 'embarquee', entrees: 0, date: null, ageJours: null };
+
+  return {
+    source: 'osv',
+    entrees: Object.keys(cache.packages).length,
+    date: cache.generatedAt ?? null,
+    ageJours: Number.isFinite(cache.ageDays) ? Math.round(cache.ageDays) : null,
+  };
+}
+
 export function cacheIsStale(cache) {
   return !cache || !Number.isFinite(cache.ageDays) || cache.ageDays > CACHE_MAX_AGE_DAYS;
 }

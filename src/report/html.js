@@ -56,6 +56,7 @@ function compact(result) {
     startedAt: result.startedAt,
     durationMs: result.durationMs,
     root: result.root,
+    veille: result.veille ?? null,
     project: {
       files: result.project.files,
       analyzed: result.project.analyzed,
@@ -358,6 +359,18 @@ const SCRIPT = String.raw`
           ]),
           el('span', { class: 'path', text: data.root }),
           el('span', { class: 'meta', text: new Date(data.startedAt).toLocaleString('fr-FR') + ' · ' + (data.durationMs / 1000).toFixed(2) + ' s' }),
+          // Nommer la source de la veille : sans elle, deux analyses du meme
+          // code peuvent afficher deux scores, la base OSV s'etant synchronisee
+          // entre les deux.
+          data.veille ? el('span', {
+            class: 'meta',
+            title: data.veille.source === 'osv'
+              ? 'Les vulnerabilites proviennent de la base OSV.dev telechargee a cette date.'
+              : 'Aucune base OSV locale : seule une liste embarquee a servi, les resultats sont partiels. Lancez la commande argus sync.',
+            text: data.veille.source === 'osv'
+              ? 'veille OSV · ' + data.veille.entrees + ' paquets · ' + String(data.veille.date || '').slice(0, 10)
+              : 'veille : liste embarquee',
+          }) : null,
         ]),
       ]),
     ]);

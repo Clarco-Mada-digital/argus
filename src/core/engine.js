@@ -7,6 +7,7 @@ import { atLeast } from './severity.js';
 import { constatDansSonDomaine } from './domaines.js';
 import { traduireConstat } from '../i18n/index.js';
 import { loadBaseline } from './config.js';
+import { etatDeLaVeille } from './osv.js';
 import { analyzers as builtinAnalyzers } from '../analyzers/index.js';
 import { changedFiles, describeRef } from './git.js';
 
@@ -127,6 +128,7 @@ export class Engine {
         dependencies: [...context.dependencies.values()],
       },
       scores,
+      veille: etatDeLaVeille(context.root),
       diff: diff ? { ref: diff.ref, base: diff.base, description: diff.description, files: [...diff.files] } : null,
       findings: kept,
       suppressed: suppressed.length,

@@ -1,4 +1,4 @@
-import { CATEGORIES, SEVERITIES, SEVERITY_LABEL_FR } from '../core/severity.js';
+import { CATEGORIES, SEVERITIES, SEVERITY_LABEL_FR, severityRank, atLeast } from '../core/severity.js';
 
 /**
  * Couleurs ANSI, desactivees automatiquement hors TTY ou avec NO_COLOR.
@@ -76,6 +76,29 @@ function preuvePrincipale(project) {
   return project.preuves?.[project.identite] ?? null;
 }
 
+/**
+ * Sur quelle base la veille de vulnerabilites a conclu.
+ *
+ * Sans cette ligne, une premiere analyse et la suivante peuvent donner des
+ * scores differents sans qu'aucun code n'ait bouge : la synchronisation OSV
+ * s'intercale en silence. Nommer la source rend la difference explicable au
+ * lieu de la rendre suspecte.
+ */
+function ligneDeVeille(veille) {
+  if (!veille) return null;
+
+  if (veille.source !== 'osv') {
+    return `  ${color.dim('Veille')}        ${color.yellow('liste embarquee')} ${color.dim('— `argus sync` interroge la base OSV')}`;
+  }
+
+  const age =
+    veille.ageJours === null ? '' :
+    veille.ageJours <= 0 ? " (aujourd'hui)" :
+    ` (il y a ${veille.ageJours} j)`;
+  const quand = veille.date ? `${veille.date.slice(0, 10)}${age}` : 'date inconnue';
+  return `  ${color.dim('Veille')}        base OSV, ${veille.entrees} paquet(s) ${color.dim(`— ${quand}`)}`;
+}
+
 function renderSousProjets(project) {
   const sous = project.sousProjets || [];
   if (sous.length === 0) return [];
@@ -130,6 +153,7 @@ function renderHeader(result) {
     stack ? `  ${color.dim('Langages')}      ${stack}` : null,
     project.frameworks.length ? `  ${color.dim('Detecte')}       ${project.frameworks.slice(0, 8).join(', ')}` : null,
     `  ${color.dim('Duree')}         ${(result.durationMs / 1000).toFixed(2)} s`,
+    ligneDeVeille(result.veille),
   ];
 
   if (result.diff) {
@@ -242,20 +266,35 @@ function renderFindings(result, { verbose, maxPerRule, maxFindings }) {
     byCategory.get(finding.category).push(finding);
   }
 
+  // Le budget d'affichage se consommait dans l'ordre des categories. Une
+  // equipe a ainsi vu « 820 probleme(s) non affiche(s) » masquer leur unique
+  // constat critique : il tombait dans une categorie tardive. Deux garde-fous
+  // en decoulent — le plus grave passe en premier, et il ne peut pas etre
+  // tronque.
+  for (const findings of byCategory.values()) {
+    findings.sort((a, b) => severityRank(a.severity) - severityRank(b.severity));
+  }
+  const categoriesTriees = [...byCategory.entries()].sort(
+    ([, a], [, b]) => severityRank(a[0].severity) - severityRank(b[0].severity),
+  );
+
   let shown = 0;
-  for (const [categoryId, findings] of byCategory) {
+  for (const [categoryId, findings] of categoriesTriees) {
     lines.push(`  ${color.bold(color.cyan((CATEGORIES[categoryId]?.label || categoryId).toUpperCase()))} ${color.dim(`(${findings.length})`)}`);
     lines.push('');
 
     const perRule = new Map();
     for (const finding of findings) {
       const count = perRule.get(finding.ruleId) || 0;
-      if (!verbose && count >= maxPerRule) {
+      if (!verbose && count >= maxPerRule && !atLeast(finding.severity, 'high')) {
         perRule.set(finding.ruleId, count + 1);
         continue;
       }
       perRule.set(finding.ruleId, count + 1);
-      if (!verbose && shown >= maxFindings) break;
+      // Un constat grave s'affiche hors budget : le tronquer revient a le
+      // cacher, ce qui est exactement l'inverse du but du rapport.
+      const grave = atLeast(finding.severity, 'high');
+      if (!verbose && !grave && shown >= maxFindings) break;
       shown++;
 
       const paint = SEVERITY_COLOR[finding.severity];
