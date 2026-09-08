@@ -30,6 +30,10 @@ export default {
       collectDuplicationBlocks(file, options, blocks);
     }
 
+    for (const file of context.sources({ languages: ['yaml'] })) {
+      analyserEchappementsYaml(file, report);
+    }
+
     detectDuplication(blocks, options, report);
     analyzeStructure(context, report);
     analyzeTests(context, files, report);
@@ -41,6 +45,123 @@ export default {
     });
   },
 };
+
+/**
+ * Sequences d'echappement invalides dans un scalaire YAML entre guillemets.
+ *
+ * YAML n'accepte qu'une courte liste d'echappements entre `"…"`. Une barre
+ * oblique inverse suivie d'autre chose — `\$`, `\d`, un chemin Windows — rend
+ * le *fichier entier* illisible, pas seulement la ligne.
+ *
+ * La consequence est sournoise : un workflow qui ne se charge pas ne signale
+ * rien, il ne s'execute simplement jamais. Nous en avons fait les frais nous
+ * memes, sur notre propre `action.yml` : une equipe ne pouvait pas utiliser
+ * l'action en integration continue, et le message du runner ne pointait que
+ * la ligne, pas la cause.
+ *
+ * Les guillemets simples ne traitent aucun echappement : c'est presque
+ * toujours le bon remede.
+ */
+const ECHAPPEMENTS_YAML = new Set([...'0abtnvfre "/\\N_LP\t']);
+
+/** `\x` attend 2 chiffres hexadecimaux, `\u` en attend 4, `\U` en attend 8. */
+const ECHAPPEMENTS_HEXA = { x: 2, u: 4, U: 8 };
+
+/**
+ * Le premier echappement invalide d'une chaine, ou `null`.
+ *
+ * `"C:\Users\runner"` en est l'exemple typique : `\U` *est* un echappement
+ * reconnu, mais il exige huit chiffres hexadecimaux. Un chemin Windows colle
+ * dans un YAML casse donc le fichier entier, et l'auteur cherche longtemps.
+ */
+function echappementInvalide(contenu) {
+  for (const trouve of contenu.matchAll(/\\(.)/g)) {
+    const caractere = trouve[1];
+    const chiffres = ECHAPPEMENTS_HEXA[caractere];
+
+    if (chiffres !== undefined) {
+      const suite = contenu.slice(trouve.index + 2, trouve.index + 2 + chiffres);
+      if (new RegExp(`^[0-9a-fA-F]{${chiffres}}$`).test(suite)) continue;
+      return { caractere, position: trouve.index, chiffres };
+    }
+
+    if (!ECHAPPEMENTS_YAML.has(caractere)) return { caractere, position: trouve.index };
+  }
+  return null;
+}
+
+/**
+ * Les rangs de lignes appartenant au corps d'un bloc litteral YAML.
+ *
+ * Un bloc s'ouvre par `|` ou `>` (avec les variantes `-` et `+`) en fin de
+ * ligne, et court tant que l'indentation depasse celle de la clef qui l'a
+ * ouvert. Son contenu n'est pas analyse par YAML, donc il n'y a rien a y
+ * verifier.
+ */
+function lignesDeBlocLitteral(lignes) {
+  const dedans = new Set();
+  let margeOuvrante = null;
+
+  lignes.forEach((ligne, rang) => {
+    if (margeOuvrante !== null) {
+      if (!ligne.trim()) { dedans.add(rang); return; }
+      if (indentOf(ligne) > margeOuvrante) { dedans.add(rang); return; }
+      margeOuvrante = null;
+    }
+    // `clef: |`, `clef: >-`, ou un `-` de liste suivi du meme marqueur.
+    if (/(?::|^\s*-)\s*[|>][+-]?\s*(?:#.*)?$/.test(ligne)) margeOuvrante = indentOf(ligne);
+  });
+
+  return dedans;
+}
+
+function analyserEchappementsYaml(file, report) {
+  if (!file.readable) return;
+  const index = lineIndexFor(file);
+
+  // Un bloc litteral (`run: |`) ne contient pas de YAML : c'est du texte
+  // opaque, le plus souvent du shell, ou `\`` et `\$` sont l'echappement
+  // normal. Nos propres workflows en contiennent, et la regle les a signales
+  // des le premier essai — a tort.
+  const dansUnBloc = lignesDeBlocLitteral(file.lines);
+
+  file.lines.forEach((ligne, rang) => {
+    if (dansUnBloc.has(rang)) return;
+    // Un commentaire n'est pas un scalaire : `# chemin C:\Users` est valide.
+    const sansCommentaire = ligne.replace(/(?:^|\s)#.*$/, '');
+
+    for (const guillemets of sansCommentaire.matchAll(/"((?:[^"\\]|\\.)*)"/g)) {
+      const echappement = echappementInvalide(guillemets[1]);
+      if (echappement) {
+        const pourquoi = echappement.chiffres
+          ? `\\${echappement.caractere} attend ${echappement.chiffres} chiffres hexadecimaux, qui ne suivent pas`
+          : `\\${echappement.caractere} n'est pas un echappement YAML valide`;
+
+        report({
+          ruleId: 'QUAL-YAML-ECHAPPEMENT-INVALIDE',
+          severity: 'high',
+          title: 'Fichier YAML illisible',
+          message:
+            `Entre guillemets doubles, ${pourquoi}. Le fichier entier devient illisible, ` +
+            'et non la seule ligne concernee : un workflow dans cet etat ne signale aucune ' +
+            'erreur, il ne s\'execute jamais.',
+          file: file.relativePath,
+          line: rang + 1,
+          column: guillemets.index + 1 + echappement.position + 1,
+          snippet: ligne.trim(),
+          suggestion:
+            'Passez la valeur en guillemets simples : YAML n\'y traite aucun echappement. ' +
+            'Sinon, doublez la barre oblique inverse, ou utilisez un bloc littéral `|`. ' +
+            'Seuls 0 a b t n v f r e espace \" / \\ N _ L P sont valides seuls ; x, u et U ' +
+            'exigent respectivement 2, 4 et 8 chiffres hexadecimaux.',
+          effort: 'rapide',
+          confidence: 'certain',
+        });
+        return;
+      }
+    }
+  });
+}
 
 function analyzeFileSize(file, options, report) {
   if (file.lineCount <= options.maxFileLines) return;

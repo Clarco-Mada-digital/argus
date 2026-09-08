@@ -20,7 +20,10 @@ inputs:
     required: false
     default: ''
   since:
-    description: "Reference Git : ne juger que les changements. Sur une pull request, utilisez origin/\${{ github.base_ref }}"
+    # Guillemets simples : YAML n'y traite aucun echappement, alors qu'en
+    # guillemets doubles `\$` est une sequence inconnue et rend le fichier
+    # illisible — le runner refusait de charger l'action entiere.
+    description: 'Reference Git : ne juger que les changements. Sur une pull request, utilisez origin/${{ github.base_ref }}'
     required: false
     default: ''
   sarif:
