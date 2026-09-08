@@ -175,7 +175,7 @@ export class Engine {
     const kept = [];
     const suppressed = [];
     const seen = new Set();
-    const { disabledRules = [], ruleSeverity = {}, minSeverity = 'info' } = this.config;
+    const { disabledRules = [], ruleSeverity = {}, minSeverity = 'info', suppressions = [] } = this.config;
 
     for (const finding of findings) {
       // La suppression par commentaire vaut pour toutes les regles, quel que
@@ -209,6 +209,14 @@ export class Engine {
         suppressed.push(finding);
         continue;
       }
+      // Suppression ciblee : regle, fichier, et ligne si elle est precisee.
+      // Sans ligne, la regle est ecartee sur tout le fichier — c'est ce qu'on
+      // veut quand le meme faux positif se repete dans un meme module.
+      if (suppressions.some((s) => estSupprime(finding, s))) {
+        finding.suppressedByConfig = true;
+        suppressed.push(finding);
+        continue;
+      }
       if (!atLeast(finding.severity, minSeverity)) {
         suppressed.push(finding);
         continue;
@@ -235,6 +243,14 @@ export class Engine {
  *   `argus-ignore` / `argus-disable` sur la ligne concernee,
  *   `argus-disable-next-line` sur la ligne precedente.
  */
+/** Ce constat correspond-il a une suppression declaree dans la configuration ? */
+function estSupprime(finding, suppression) {
+  if (!suppression || suppression.regle !== finding.ruleId) return false;
+  if (suppression.fichier && suppression.fichier !== finding.file) return false;
+  if (suppression.ligne != null && suppression.ligne !== finding.line) return false;
+  return true;
+}
+
 function isSuppressedInSource(finding, context) {
   if (!finding.file || !finding.line) return false;
   const file = context.file(finding.file);

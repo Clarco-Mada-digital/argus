@@ -771,6 +771,7 @@ argus crawl <url>        audit du site réellement en ligne
 argus sync [chemin]      met à jour la base de vulnérabilités (OSV.dev)
 argus init [chemin]      crée un argus.config.json commenté
 argus rules              liste les règles de sécurité
+argus ignore <RÈGLE> [fichier[:ligne]]   écarte un faux positif précis
 argus history [chemin]   évolution des scores au fil des analyses
 argus baseline [chemin]  fige l'état actuel comme référence
 argus help [commande]    aide détaillée
@@ -782,7 +783,8 @@ argus help [commande]    aide détaillée
 |---|---|
 | `--html [fichier]` | Rapport HTML autonome (défaut : `argus-report.html`) |
 | `--json` / `--sarif` / `--markdown` | Autres formats de rapport |
-| `--format <nom>` | Sortie standard : `terminal`, `json`, `sarif`, `markdown`, `html`, `compact`, `github` |
+| `--format <nom>` | Sortie standard : `terminal`, `json`, `sarif`, `markdown`, `html`, `compact`, `summary`, `github` |
+| `--summary` | Les scores seuls, une ligne par dimension — pratique en intégration continue |
 | `--open` | Ouvre le rapport HTML dans le navigateur |
 | `--only <catégories>` | Ex. `--only seo,design` |
 | `--skip <catégories>` | Catégories à exclure |
@@ -796,6 +798,30 @@ argus help [commande]    aide détaillée
 | `--fail-under <score>` | Code de sortie 1 sous ce score global |
 | `--update-baseline` | Fige l'état actuel comme référence |
 | `-V, --verbose` | Affiche tous les problèmes |
+
+### Écarter un faux positif
+
+Trois portées, de la plus étroite à la plus large. Prenez toujours la plus étroite
+qui suffit : une suppression trop large finit par cacher un vrai constat.
+
+```bash
+# Ce constat-là, à cet endroit-là. Rien n'est écrit dans votre code.
+argus ignore SEC-INNERHTML src/vue.jsx:42 --raison "chaîne constante"
+
+# La même règle sur tout un fichier, quand le motif s'y répète.
+argus ignore QUAL-DUPLICATION src/generated.ts --raison "sortie de générateur"
+```
+
+L'entrée va dans `argus.config.json`, sous `suppressions`. **La raison n'est pas
+décorative** : sans elle, une suppression redevient indéchiffrable en trois mois,
+et plus personne n'ose la retirer.
+
+Deux autres formes existent pour d'autres besoins :
+
+- un commentaire `// argus-ignore RÈGLE : pourquoi` juste avant la ligne, ou sur
+  la ligne elle-même — utile quand la justification appartient au code ;
+- `disabledRules` dans la configuration, qui éteint une règle **partout** ;
+- `argus baseline`, qui fige l'existant pour ne juger que ce qui vient après.
 
 ---
 

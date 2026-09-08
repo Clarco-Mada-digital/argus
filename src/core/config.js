@@ -74,6 +74,18 @@ export const DEFAULT_CONFIG = {
   platforms: [],
   /** Regles desactivees, par identifiant ou prefixe (ex: "SEC-" ). */
   disabledRules: [],
+  /**
+   * Faux positifs ecartes un par un : `{ regle, fichier, ligne, raison }`.
+   *
+   * `disabledRules` eteint une regle partout, ce qui est trop large quand un
+   * seul endroit pose probleme — et la baseline accepte tout en bloc, ce qui
+   * est trop indistinct. Entre les deux manquait le geste le plus courant :
+   * « celui-la, non, et voici pourquoi ». C'est ce que `argus ignore` ecrit.
+   *
+   * La raison n'est pas decorative : une suppression sans motif redevient
+   * indechiffrable en trois mois, et personne n'ose plus la retirer.
+   */
+  suppressions: [],
   /** Surcharges de severite : { "SEO-001": "low" }. */
   ruleSeverity: {},
   /** URL de production, pour les regles SEO (canonical, sitemap). */

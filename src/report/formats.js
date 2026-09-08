@@ -149,6 +149,30 @@ function escapeCell(text) {
 }
 
 /** Sortie compacte pour la CI (une ligne par probleme). */
+/**
+ * Les scores, et rien d'autre.
+ *
+ * Demande pour l'integration continue : on y veut souvent le chiffre a
+ * archiver ou a comparer, pas la liste des constats — que le SARIF ou le
+ * rapport HTML portent deja. Une ligne par dimension, analysable par `cut` ou
+ * `awk` sans dependre d'un analyseur JSON.
+ */
+export function renderSummary(result) {
+  const lignes = [`global ${result.scores.global} ${result.scores.grade}`];
+
+  for (const [id, categorie] of Object.entries(result.scores.categories)) {
+    lignes.push(`${id} ${categorie.score} ${categorie.counts.critical + categorie.counts.high}`);
+  }
+
+  for (const severite of ['critical', 'high', 'medium', 'low', 'info']) {
+    lignes.push(`${severite} ${result.scores.counts[severite] ?? 0}`);
+  }
+
+  lignes.push(`fichiers ${result.project.analyzed}`);
+  lignes.push(`duree_ms ${result.durationMs}`);
+  return `${lignes.join('\n')}\n`;
+}
+
 export function renderCompact(result) {
   return `${result.findings
     .map((f) => `${f.file || '.'}:${f.line || 0}: [${f.severity}] ${f.ruleId} ${f.title}`)

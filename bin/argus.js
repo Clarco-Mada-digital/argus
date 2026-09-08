@@ -2,11 +2,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { parseArgs, toList } from '../src/cli/args.js';
-import { loadConfig, writeBaseline, DEFAULT_CONFIG } from '../src/core/config.js';
+import { DEFAULT_CONFIG, loadConfig, stripJsonComments, writeBaseline } from '../src/core/config.js';
 import { Engine } from '../src/core/engine.js';
 import { renderReport, createSpinner, color } from '../src/report/terminal.js';
 import { renderHtml } from '../src/report/html.js';
-import { renderCompact, renderGithub, renderJson, renderMarkdown, renderSarif } from '../src/report/formats.js';
+import { renderCompact, renderGithub, renderJson, renderMarkdown, renderSarif, renderSummary } from '../src/report/formats.js';
 import { atLeast, CATEGORY_IDS, SEVERITIES, SEVERITY_LABEL_FR } from '../src/core/severity.js';
 import { SECURITY_RULES } from '../src/rules/security.js';
 import { startServer } from '../src/server/index.js';
@@ -36,7 +36,7 @@ async function main() {
   const { options, positional } = parseArgs(argv, { booleans: BOOLEANS, aliases: ALIASES });
   // `argus ./site` vaut `argus scan ./site` : le premier argument n'est une
   // commande que s'il en porte le nom.
-  const COMMANDS = ['scan', 'serve', 'mcp', 'perf', 'fuites', 'init', 'rules', 'baseline', 'sync', 'fix', 'crawl', 'history', 'help'];
+  const COMMANDS = ['scan', 'serve', 'mcp', 'perf', 'fuites', 'init', 'rules', 'ignore', 'baseline', 'sync', 'fix', 'crawl', 'history', 'help'];
   // La langue est fixee avant toute production de texte : un rapport a moitie
   // traduit vient toujours d'un reglage arrive trop tard.
   definirLangue(resoudreLangue({ option: options.lang }));
@@ -70,6 +70,8 @@ async function main() {
       return runInit(target);
     case 'rules':
       return runRules(options);
+    case 'ignore':
+      return runIgnore(positional.slice(1), options);
     case 'baseline':
       return runBaseline(target, options);
     case 'sync':
@@ -85,6 +87,19 @@ async function main() {
       printHelp();
       return 2;
   }
+}
+
+/**
+ * Le chemin le plus lisible pour un fichier ecrit.
+ *
+ * `path.relative` produit `../../../../tmp/rapport.html` des que la cible
+ * sort de l'arborescence courante — moins lisible que l'absolu, et
+ * impossible a copier-coller sans compter les remontees. On ne garde le
+ * relatif que lorsqu'il reste sous le dossier de travail.
+ */
+function cheminLisible(chemin) {
+  const relatif = path.relative(process.cwd(), chemin);
+  return relatif.startsWith('..') || path.isAbsolute(relatif) ? chemin : relatif;
 }
 
 function buildConfig(target, options) {
@@ -150,11 +165,13 @@ async function runScan(target, options) {
 
   if (options['update-baseline']) {
     const file = writeBaseline(config, result.findings);
-    process.stdout.write(`${color.green('✔')} Baseline mise a jour : ${path.relative(process.cwd(), file)} (${result.findings.length} empreintes)\n`);
+    process.stdout.write(`${color.green('✔')} Baseline mise a jour : ${cheminLisible(file)} (${result.findings.length} empreintes)\n`);
     return 0;
   }
 
-  const format = String(options.format || (options.ci ? 'github' : 'terminal'));
+  // `--summary` est un raccourci de `--format summary` : c'est ce que l'on
+  // tape en integration continue, ou l'on veut le chiffre et pas la liste.
+  const format = String(options.summary ? 'summary' : options.format || (options.ci ? 'github' : 'terminal'));
   const written = writeOutputs(result, options, config);
 
   if (format === 'terminal') {
@@ -168,7 +185,7 @@ async function runScan(target, options) {
 
   for (const file of written) {
     if (!options.silent && format === 'terminal') {
-      process.stdout.write(`  ${color.green('✔')} ${file.label} : ${color.underline(path.relative(process.cwd(), file.path))}\n`);
+      process.stdout.write(`  ${color.green('✔')} ${file.label} : ${color.underline(cheminLisible(file.path))}\n`);
     }
   }
 
@@ -237,13 +254,14 @@ function renderFormat(result, format, options = {}) {
     case 'md': return renderMarkdown(result);
     case 'html': return renderHtml(result);
     case 'compact': return renderCompact(result);
+    case 'summary': return renderSummary(result);
     case 'revue': {
       // Une revue peut n'avoir rien a dire : c'est un resultat, pas un vide.
       const revue = renderRevue(result, { base: options.since || 'main' });
       return revue ? revue.corps : '';
     }
     case 'github': return renderGithub(result);
-    default: throw new Error(`Format inconnu : ${format}. Formats disponibles : terminal, json, sarif, markdown, html, compact, revue, github.`);
+    default: throw new Error(`Format inconnu : ${format}. Formats disponibles : terminal, json, sarif, markdown, html, compact, summary, revue, github.`);
   }
 }
 
@@ -359,7 +377,7 @@ function runInit(target) {
 
   fs.writeFileSync(destination, `${entete}${JSON.stringify(template, null, 2)}\n`, 'utf8');
   process.stdout.write(
-    `${color.green('✔')} Configuration creee : ${path.relative(process.cwd(), destination)}\n\n` +
+    `${color.green('✔')} Configuration creee : ${cheminLisible(destination)}\n\n` +
       `  Lancez ensuite : ${color.cyan('argus scan --html rapport.html --open')}\n`,
   );
   return 0;
@@ -476,7 +494,7 @@ async function runSync(target, options) {
   process.stdout.write(
     `  ${color.green('✔')} ${resultat.queried} paquets verifies\n` +
       `  ${avis > 0 ? color.red('▲') : color.green('✔')} ${resultat.vulnerable} paquet(s) concerne(s) par ${avis} bulletin(s)\n` +
-      color.dim(`  Cache ecrit : ${path.relative(process.cwd(), resultat.file)}\n`) +
+      color.dim(`  Cache ecrit : ${cheminLisible(resultat.file)}\n`) +
       color.dim('  Les analyses suivantes sont hors ligne. Ajoutez .argus/ a votre .gitignore.\n\n') +
       `  ${color.dim('Etape suivante :')} ${color.cyan('argus scan --only dependances')}\n\n`,
   );
@@ -733,7 +751,7 @@ async function runFix(target, options) {
       '\n',
   );
   if (resultat.backupDir) {
-    process.stdout.write(color.dim(`  Sauvegarde des originaux : ${path.relative(process.cwd(), resultat.backupDir)}\n`));
+    process.stdout.write(color.dim(`  Sauvegarde des originaux : ${cheminLisible(resultat.backupDir)}\n`));
   }
   if (resultat.applied.length > 0) {
     process.stdout.write(
@@ -927,6 +945,90 @@ function runHistory(target, options) {
   return 0;
 }
 
+/**
+ * Ecarte un faux positif precis, sans toucher au code analyse.
+ *
+ *   argus ignore SEC-INNERHTML src/vue.jsx:42 --raison "chaine constante"
+ *
+ * Demande par une equipe : entre `disabledRules`, qui eteint une regle
+ * partout, et la baseline, qui accepte tout en bloc, il manquait le geste le
+ * plus courant — « celui-la, non ».
+ *
+ * L'entree va dans `argus.config.json`, jamais dans les fichiers analyses :
+ * c'est le code de l'utilisateur, et nous n'y ecrivons pas. La configuration,
+ * elle, est la notre, et reste relisable et reversible.
+ */
+function runIgnore(arguments_, options) {
+  const [regle, cible] = arguments_;
+
+  if (!regle) {
+    process.stderr.write(
+      `${color.red('Il manque la regle a ecarter.')}\n\n` +
+        `  ${color.cyan('argus ignore <REGLE> [fichier[:ligne]] --raison "pourquoi"')}\n\n` +
+        color.dim('  Sans fichier, la regle est ecartee partout — preferez alors disabledRules.\n') +
+        color.dim('  L\'entree est ecrite dans argus.config.json, jamais dans votre code.\n\n'),
+    );
+    return 2;
+  }
+
+  const racine = path.resolve(process.cwd(), typeof options.path === 'string' ? options.path : '.');
+  const fichierConfig = path.join(racine, 'argus.config.json');
+
+  if (!fs.existsSync(fichierConfig)) {
+    process.stderr.write(
+      `${color.yellow('⚠')} Aucun argus.config.json ici. Lancez d'abord ${color.cyan('argus init')}.\n`,
+    );
+    return 1;
+  }
+
+  const brut = fs.readFileSync(fichierConfig, 'utf8');
+  let config;
+  try {
+    config = JSON.parse(stripJsonComments(brut));
+  } catch (erreur) {
+    process.stderr.write(`${color.red('argus.config.json est illisible')} : ${erreur.message}\n`);
+    return 1;
+  }
+
+  // `fichier:ligne`, en tolerant les deux-points d'un chemin Windows.
+  const separateur = cible ? cible.lastIndexOf(':') : -1;
+  const aUneLigne = separateur > 1 && /^\d+$/.test(cible.slice(separateur + 1));
+  const fichier = cible ? (aUneLigne ? cible.slice(0, separateur) : cible) : null;
+  const ligne = aUneLigne ? Number.parseInt(cible.slice(separateur + 1), 10) : null;
+
+  const entree = {
+    regle,
+    ...(fichier ? { fichier: path.relative(racine, path.resolve(process.cwd(), fichier)) || fichier } : {}),
+    ...(ligne != null ? { ligne } : {}),
+    raison: typeof options.raison === 'string' ? options.raison : 'faux positif',
+  };
+
+  config.suppressions = config.suppressions || [];
+  const deja = config.suppressions.some(
+    (s) => s.regle === entree.regle && s.fichier === entree.fichier && s.ligne === entree.ligne,
+  );
+
+  if (deja) {
+    process.stdout.write(`${color.dim('Deja present, rien a faire.')}\n`);
+    return 0;
+  }
+
+  config.suppressions.push(entree);
+
+  // L'en-tete de commentaires ecrite par `argus init` est conservee : la
+  // reecrire sans elle priverait le fichier de ce qui l'explique.
+  const entete = /^(?:\s*\/\/.*\n)+/.exec(brut)?.[0] ?? '';
+  fs.writeFileSync(fichierConfig, `${entete}${JSON.stringify(config, null, 2)}\n`, 'utf8');
+
+  const ou = entree.fichier ? `${entree.fichier}${entree.ligne != null ? `:${entree.ligne}` : ''}` : 'partout';
+  process.stdout.write(
+    `${color.green('✔')} ${color.bold(regle)} ecarte sur ${color.cyan(ou)}\n` +
+      color.dim(`  raison : ${entree.raison}\n`) +
+      color.dim(`  ecrit dans ${cheminLisible(fichierConfig)} — votre code n'a pas ete modifie.\n`),
+  );
+  return 0;
+}
+
 async function runBaseline(target, options) {
   return runScan(target, { ...options, 'update-baseline': true });
 }
@@ -951,7 +1053,8 @@ function printHelp(topic) {
     --json [fichier]        rapport JSON complet
     --sarif [fichier]       rapport SARIF 2.1 (GitHub Code Scanning)
     --markdown [fichier]    rapport Markdown
-    --format <nom>          terminal | json | sarif | markdown | html | compact | github
+    --format <nom>          terminal | json | sarif | markdown | html | compact | summary | github
+    --summary               les scores seuls, une ligne par dimension (pratique en CI)
     --open                  ouvre le rapport HTML dans le navigateur
 
   ${color.dim('Perimetre')}
@@ -1052,6 +1155,8 @@ function printHelp(topic) {
     sync [chemin]      met a jour la base de vulnerabilites depuis OSV.dev
     init [chemin]      cree un fichier argus.config.json
     rules              liste les regles de securite disponibles
+    ignore <REGLE> [fichier[:ligne]]
+                       ecarte un faux positif precis ${color.dim('(ecrit dans argus.config.json)')}
     history [chemin]   evolution des scores au fil des analyses\n    baseline [chemin]  enregistre l'etat actuel comme reference
     help [commande]    aide detaillee
 
@@ -1061,6 +1166,12 @@ function printHelp(topic) {
 
     ${color.dim('# Rapport HTML complet, ouvert automatiquement')}
     argus scan ./mon-site --html rapport.html --open
+
+    ${color.dim('# Les scores seuls, pour archiver ou comparer en integration continue')}
+    argus scan . --summary
+
+    ${color.dim('# Ecarter un faux positif precis, sans toucher au code')}
+    argus ignore SEC-INNERHTML src/vue.jsx:42 --raison "chaine constante"
 
     ${color.dim('# Uniquement le SEO et le design, tout afficher')}
     argus scan --only seo,design --verbose
