@@ -24,6 +24,9 @@ function argus(arguments_, cwd) {
 function petitProjet() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'argus-ergo-'));
   fs.writeFileSync(path.join(dir, 'package.json'), '{"name":"t","version":"1.0.0"}');
+  // argus-ignore SEC-SECRET-AWS-ACCESS-KEY : la clef d'exemple de la
+  // documentation AWS, ici pour produire un constat a ecarter — c'est
+  // exactement ce que le test verifie.
   fs.writeFileSync(path.join(dir, 'app.js'), "export const cle = 'AKIAIOSFODNN7EXAMPLE';\n");
   return dir;
 }
