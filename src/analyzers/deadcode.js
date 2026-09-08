@@ -451,7 +451,11 @@ function detectDebugLeftovers(file, report) {
   const masked = maskedSource(file);
   const index = lineIndexFor(file);
   const patterns = [
-    { re: /\b(debugger)\b/g, label: 'instruction debugger', severity: 'high' },
+    // `debugger` doit etre une *instruction*, jamais un nom de propriete.
+    // `wc.debugger` est l'API Electron webContents.debugger — le protocole
+    // DevTools de Chrome — et se voyait signalee comme une instruction
+    // oubliee, au rang le plus grave.
+    { re: /(?<![.?\w$])debugger\s*(?=[;\n}]|$)/g, label: 'instruction debugger', severity: 'high' },
     { re: /\bconsole\.(log|debug|dir|table|trace)\s*\(/g, label: 'appel console', severity: 'low' },
     { re: /\b(print|pprint)\s*\(/g, label: 'appel print', severity: 'info', families: ['python'] },
     { re: /\bvar_dump\s*\(|\bdd\s*\(|\bdump\s*\(/g, label: 'dump de debug', severity: 'medium', families: ['php'] },

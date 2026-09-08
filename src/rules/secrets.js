@@ -32,7 +32,11 @@ const PROVIDER_SECRETS = [
   {
     id: 'basic-auth-url',
     label: 'URL HTTP avec identifiants',
-    pattern: /\bhttps?:\/\/[^:\s"']+:[^@\s"']{3,}@/gi,
+    // `user:pass@host` ne vit que dans l'autorite de l'URL, avant le premier
+    // `/`, `?` ou `#`. Sans cette borne, le motif traversait le chemin et la
+    // requete : l'URL de Google Fonts `…family=Inter:wght@400;500` etait lue
+    // comme un mot de passe, sur le `<link>` d'a peu pres tous les projets.
+    pattern: /\bhttps?:\/\/[^/?#:\s"']+:[^/?#@\s"']{3,}@[\w.-]+/gi,
     severity: 'high',
     // Meme liste de faux amis que pour les URL de base de donnees, qui en
     // avait une alors que celle-ci n'en avait aucune. Une documentation qui

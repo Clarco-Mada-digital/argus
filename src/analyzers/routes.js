@@ -285,7 +285,32 @@ function detectMalformed(routes, report) {
   }
 }
 
+/** Bibliotheques de routage : leur presence rend les chemins signifiants. */
+const ROUTEURS = [
+  'react-router', 'vue-router', 'angular', 'expo-router', 'react-navigation',
+  'nextjs', 'nuxt', 'sveltekit', 'remix', 'astro', 'tanstack-router', 'wouter',
+];
+
+/**
+ * Un chemin est-il une adresse dans ce projet ?
+ *
+ * Dans une application de bureau ou mobile sans routeur, `/settings` ecrit
+ * dans un `href` n'est pas une URL : c'est une clef que le code interprete
+ * lui-meme, ou un reste de gabarit web. Aucun fichier n'y correspond, et
+ * c'est normal.
+ *
+ * Signale sur une application Electron reelle : tous les « liens internes
+ * morts » etaient de cette nature. Les ressources statiques, elles, restent
+ * verifiees — une image absente manque autant sur le bureau que sur le web.
+ */
+function lesCheminsSontDesAdresses(context) {
+  const plateformes = context.platforms || [];
+  if (plateformes.length === 0 || plateformes.includes('web')) return true;
+  return ROUTEURS.some((routeur) => context.has(routeur));
+}
+
 function detectBrokenLinks(links, routes, assets, context, report) {
+  const cheminsSignifiants = lesCheminsSontDesAdresses(context);
   const matchable = routes.filter((r) => r.kind !== 'mount');
   const mounts = routes.filter((r) => r.kind === 'mount').map((r) => r.pattern);
   const namedRoutes = new Set(routes.map((r) => r.handler).filter(Boolean));
@@ -333,6 +358,8 @@ function detectBrokenLinks(links, routes, assets, context, report) {
         'Corrigez le chemin, ou ajoutez la ressource manquante. Un 404 sur une ressource ralentit le rendu et degrade le score de crawl.');
       continue;
     }
+
+    if (!cheminsSignifiants) continue;
 
     maybeReport(link, 'ROUTE-BROKEN-LINK', 'Lien interne mort',
       `Le lien "${target}" ne correspond a aucune route ni fichier du projet.`,

@@ -18,6 +18,74 @@ import { t } from '../i18n/index.js';
  * non referme avant la position du champ l'enveloppe. C'est suffisant ici, et
  * cela ne demande pas de construire un arbre.
  */
+/**
+ * Un gestionnaire qui ne fait qu'empecher la propagation n'est pas une action.
+ *
+ * `onClick={(e) => e.stopPropagation()}` sur la boite d'une modale sert a ne
+ * *pas* declencher le clic du fond. Il n'y a rien a rendre atteignable au
+ * clavier : l'element ne fait rien.
+ */
+/**
+ * Le gestionnaire de clic, lu dans la source plutot que dans l'attribut.
+ *
+ * Une fleche JSX contient un `>` : `onClick={(e) => …}` fait croire au
+ * decoupeur de balises que l'element se termine la, et l'attribut arrive
+ * tronque a « {(e) = ». On relit donc depuis la source en equilibrant les
+ * accolades, ce qui rend la valeur entiere.
+ */
+function gestionnaireDeClic(file, node) {
+  const debut = /\b(?:onClick|onclick|@click|v-on:click|\(click\))\s*=\s*/.exec(
+    file.content.slice(node.start, node.start + 600),
+  );
+  if (!debut) return node.attr('onclick') ?? '';
+
+  const depart = node.start + debut.index + debut[0].length;
+  const ouvrant = file.content[depart];
+  if (ouvrant !== '{') {
+    const fin = file.content.indexOf(ouvrant, depart + 1);
+    return fin === -1 ? '' : file.content.slice(depart + 1, fin);
+  }
+
+  let profondeur = 0;
+  for (let i = depart; i < file.content.length && i < depart + 600; i++) {
+    if (file.content[i] === '{') profondeur++;
+    else if (file.content[i] === '}' && --profondeur === 0) return file.content.slice(depart, i + 1);
+  }
+  return '';
+}
+
+function neutraliseSeulement(gestionnaire) {
+  let corps = String(gestionnaire).trim();
+  // En JSX la valeur arrive avec ses accolades : `{(e) => e.stopPropagation()}`.
+  if (corps.startsWith('{') && corps.endsWith('}')) corps = corps.slice(1, -1).trim();
+  // Puis la fleche de la fonction, avec ou sans parentheses autour du parametre.
+  corps = corps.replace(/^\(?[\w\s,]*\)?\s*=>\s*/, '').trim();
+  if (corps.startsWith('{') && corps.endsWith('}')) corps = corps.slice(1, -1).trim();
+
+  const NEUTRE = /(?:\w+\.)?(?:stopPropagation|preventDefault|stopImmediatePropagation)\s*\(\s*\)/;
+  return corps
+    .split(';')
+    .map((instruction) => instruction.trim())
+    .filter(Boolean)
+    .every((instruction) => new RegExp(`^${NEUTRE.source}$`).test(instruction));
+}
+
+/**
+ * Ce calque couvre-t-il l'ecran ?
+ *
+ * Les trois ecritures courantes : les classes utilitaires (`fixed inset-0`),
+ * un style en ligne, et un nom de classe explicite. Aucune n'est certaine,
+ * mais ensemble elles couvrent ce qu'on rencontre.
+ */
+function estUnFondDeModale(node) {
+  const classe = `${node.attr('class') ?? ''} ${node.attr('classname') ?? ''}`.toLowerCase();
+  const style = String(node.attr('style') ?? '').toLowerCase();
+
+  if (/\b(backdrop|overlay|modal-bg|scrim|fond-modale)\b/.test(classe)) return true;
+  if (/\b(fixed|absolute)\b/.test(classe) && /\binset-0\b|\btop-0\b/.test(classe)) return true;
+  return /position\s*:\s*fixed/.test(style) && /\b(?:top|inset)\s*:\s*0/.test(style);
+}
+
 function estEnveloppeParUnLabel(source, position) {
   const avant = source.slice(0, position);
   const ouvertures = (avant.match(/<label\b/gi) || []).length;
@@ -368,15 +436,29 @@ function analyzeMarkup(file, options, report) {
     // --- Elements non interactifs rendus cliquables.
     if (['div', 'span', 'li', 'td'].includes(node.tag)) {
       const clickable = node.has('onclick') || node.has('@click') || node.has('v-on:click') || node.has('(click)');
-      if (clickable && !node.has('role') && !node.has('tabindex')) {
+      const gestionnaire = gestionnaireDeClic(file, node);
+
+      if (clickable && !node.has('role') && !node.has('tabindex') && !neutraliseSeulement(gestionnaire)) {
+        // Un fond de modale n'est pas un bouton : le geste equivalent au
+        // clavier est la touche Echap, pas un focus sur l'arriere-plan. Le
+        // signaler comme un `<button>` manquant conduit a un contresens, et
+        // c'est le conseil qu'une equipe a recu sur toutes ses modales.
+        const fond = estUnFondDeModale(node);
+        const echapPresente = /['"`]Escape['"`]|key\s*===?\s*['"`]Esc/.test(file.content);
+        if (fond && echapPresente) continue;
+
         push({
           ruleId: 'A11Y-CLICKABLE-DIV',
-          severity: 'medium',
+          severity: fond ? 'low' : 'medium',
           title: t('constat.cliquableNonAccessible', { balise: node.tag }),
-          message: 'Un element non interactif porte un gestionnaire de clic : il est inatteignable au clavier et invisible pour les technologies d\'assistance.',
+          message: fond
+            ? 'Ce calque couvre l\'ecran et se ferme au clic, mais aucune fermeture au clavier n\'a ete trouvee dans ce fichier : un utilisateur au clavier reste enferme dans la modale.'
+            : 'Un element non interactif porte un gestionnaire de clic : il est inatteignable au clavier et invisible pour les technologies d\'assistance.',
           line: at(node),
           snippet: file.content.slice(node.start, node.end),
-          suggestion: 'Utilisez <button type="button">. Si ce n\'est pas possible, ajoutez role="button", tabindex="0" et un gestionnaire clavier (Entree et Espace).',
+          suggestion: fond
+            ? 'Ajoutez une fermeture par la touche Echap plutot qu\'un <button> : le fond n\'a pas a recevoir le focus. Marquez la boite par role="dialog" aria-modal="true" et ramenez-y le focus a l\'ouverture.'
+            : 'Utilisez <button type="button">. Si ce n\'est pas possible, ajoutez role="button", tabindex="0" et un gestionnaire clavier (Entree et Espace).',
           effort: 'moyen',
           tags: ['wcag-2.1.1', 'a11y'],
         });

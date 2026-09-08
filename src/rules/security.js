@@ -492,7 +492,13 @@ export const SECURITY_RULES = [
     // Restreinte aux affectations dont la clef vient manifestement de
     // l'exterieur : `obj[key] = value` sur des donnees locales est un idiome
     // parfaitement legitime et beaucoup trop frequent pour etre signale.
-    pattern: /\[\s*(?:req|request|params|body|query|payload|input|userInput)\b[^\]]*\]\s*=[^=]|Object\.assign\s*\(\s*\w+\s*,\s*(?:req\.body|request\.body|JSON\.parse)|\bmerge(?:Deep)?\s*\(\s*\w+\s*,\s*(?:req\.body|JSON\.parse)/g,
+    //
+    // Le crochet doit *coller* a l'expression qui le precede. C'est ce qui
+    // separe un acces indexe, `obj[query] = v`, d'une destructuration de
+    // tableau, `const [query, setQuery] = useState('')` — qui s'ecrit
+    // toujours avec une espace, et qui est la ligne la plus courante d'un
+    // composant React. Elle etait signalee au rang le plus grave.
+    pattern: /(?<=[\w$)\]])\[\s*(?:req|request|params|body|query|payload|input|userInput)\b[^\]]*\]\s*=[^=]|Object\.assign\s*\(\s*\w+\s*,\s*(?:req\.body|request\.body|JSON\.parse)|\bmerge(?:Deep)?\s*\(\s*\w+\s*,\s*(?:req\.body|JSON\.parse)/g,
     message: 'Affectation par clef issue d\'une entree utilisateur : une clef __proto__ peut polluer Object.prototype.',
     suggestion: 'Rejetez les clefs __proto__, constructor et prototype, ou utilisez Object.create(null) / Map.',
     cwe: 'CWE-1321',
