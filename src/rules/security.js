@@ -41,7 +41,42 @@ export const SECURITY_RULES = [
     title: 'Commande shell avec interpolation',
     severity: 'critical',
     families: ['js', 'python', 'php', 'ruby', 'go', 'jvm'],
-    pattern: /(exec|execSync|spawnSync|system|popen|shell_exec|passthru|Runtime\.getRuntime\(\)\.exec)\s*\(\s*[^)]*(\$\{|\+\s*\w|%s|f["']|\.format\(|`)/g,
+    // `raw` est indispensable : la facon la plus courante de construire une
+    // commande en JavaScript est un gabarit, et le masquage lexical vide les
+    // gabarits. Le motif ne voyait donc *jamais* le vrai cas — le seul
+    // constat qu'il produisait sur notre propre code etait un `RegExp.exec`.
+    raw: true,
+    //
+    // `[^)[]*` plutot que `[^)]*` : l'interpolation doit precede tout crochet.
+    // `exec('pnpm', ['run', `TARGETS:${cibles}`])` passe les arguments sous
+    // forme de tableau — c'est justement le remede que cette regle
+    // recommande, et le signaler revenait a reprocher le correctif.
+    // Le gabarit doit *interpoler*. Un `exec(`pnpm install`)` est une chaine
+    // constante : le retenir parce qu'elle porte des accents graves revenait
+    // a signaler la commande la plus inoffensive qui soit.
+    pattern: /(exec|execSync|spawnSync|system|popen|shell_exec|passthru|Runtime\.getRuntime\(\)\.exec)\s*\(\s*[^)[]*(\$\{|\+\s*\w|%s|f["'][^"']*\{|\.format\(|`[^`]*\$\{)/g,
+    /**
+     * `RegExp.prototype.exec` porte le meme nom que `child_process.exec`.
+     *
+     * `/motif/.exec(source.slice(a, b + 600))` n'execute aucune commande,
+     * mais contient une concatenation entre parentheses — et se voyait
+     * signale au rang le plus grave. C'est arrive sur notre propre code.
+     *
+     * En JavaScript, la discrimination est nette : on ne peut pas appeler
+     * `exec` sans avoir importe `child_process`. Les autres langages n'ont
+     * pas cette homonymie et gardent le comportement d'origine.
+     */
+    ignoreIf: (ligne, file) => {
+      if (file?.family !== 'js') return false;
+      // On se fie au *receveur*, pas au reste du fichier : exiger un import de
+      // `child_process` paraissait plus sur, mais faisait taire la regle sur
+      // un `exec()` recu par destructuration ou par injection — c'est-a-dire
+      // sur le cas qu'elle existe pour attraper.
+      //
+      // Un litteral d'expression reguliere ou une variable qui en porte le
+      // nom, suivi de `.exec(`, ne lance aucune commande.
+      return /(?:\/[a-z]*|\b(?:re|regex|regexp|motif|pattern|rx|matcher)\w*)\s*\.\s*exec\s*\(/i.test(ligne);
+    },
     message: 'Construction d\'une commande systeme par concatenation : injection de commande possible.',
     suggestion: 'Passez les arguments sous forme de tableau (execFile / spawn / subprocess.run([...])) et n\'utilisez jamais shell:true avec une entree utilisateur.',
     cwe: 'CWE-78',

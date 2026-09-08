@@ -240,3 +240,36 @@ test('electron : les quatre regles de securite ajoutees', async () => {
 
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test('electron : RegExp.exec n\'est pas child_process.exec', async () => {
+  // Trouve sur notre propre code. Le masquage lexical vidant les gabarits, le
+  // motif ne voyait *jamais* la vraie construction de commande — le seul
+  // constat qu'il produisait etait l'homonyme.
+  const dir = projetElectron({
+    'src/deploy.js': [
+      "const { exec } = require('node:child_process');",
+      '',
+      'export function deployer(branche) {',
+      // argus-ignore SEC-EXEC-SHELL : c'est la donnee du test, pas un appel.
+      '  exec(`git push origin ${branche}`, (e) => e && console.error(e));',
+      '}',
+      '',
+      'export function extraire(source) {',
+      '  return /(\\w+)-(\\d+)/.exec(source.slice(0, 40 + 10));',
+      '}',
+      '',
+      'export function sur(cible) {',
+      "  // Forme tableau : c'est le remede que la regle recommande.",
+      "  return exec('git', ['push', 'origin', `${cible}`]);",
+      '}',
+    ].join('\n'),
+  });
+
+  const rapport = await scan(dir, { noHistory: true });
+  const constats = rapport.findings.filter((f) => f.ruleId === 'SEC-EXEC-SHELL');
+
+  assert.equal(constats.length, 1, `lignes signalees : ${constats.map((f) => f.line)}`);
+  assert.equal(constats[0].line, 4, 'seule la commande construite par gabarit');
+
+  fs.rmSync(dir, { recursive: true, force: true });
+});
