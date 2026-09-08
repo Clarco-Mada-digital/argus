@@ -29,9 +29,11 @@ export default {
     detectUnreachableFiles(files, graph, context, report);
     detectUnusedExports(files, graph, context, report);
 
+    const jsxAutomatique = utiliseLeNouveauTransformJsx(context);
+
     for (const file of files) {
       if (file.isTest) continue;
-      detectUnusedImports(file, report);
+      detectUnusedImports(file, report, jsxAutomatique);
       detectUnusedLocals(file, report);
       detectUnreachableCode(file, report);
       detectCommentedCode(file, report);
@@ -102,6 +104,7 @@ function detectUnreachableFiles(files, graph, context, report) {
     if (!IMPORTS_PAR_FICHIER.has(file.family)) continue;
     if (isEntryPoint(file, context)) continue;
     if (file.isTest || file.isVendored) continue;
+    if (estUneSurcoucheDePlateforme(file.relativePath)) continue;
     if (graph.reverse.has(file.relativePath)) continue;
     if (file.lineCount < 3) continue;
     // En dernier : c'est la verification la plus couteuse.
@@ -249,7 +252,44 @@ function isPublicApiFile(file, context) {
   return false;
 }
 
-function detectUnusedImports(file, report) {
+/**
+ * Surcouche de plateforme React Native / Expo.
+ *
+ * `useColorScheme.web.ts` n'est jamais importe sous ce nom : le code ecrit
+ * `from './useColorScheme'`, et l'empaqueteur choisit la variante selon la
+ * cible. Un fichier de ce type ne peut donc pas etre « jamais importe » au
+ * sens ou l'entend la regle.
+ *
+ * Ce cas ne s'est pas reproduit sur notre reconstitution — la variante y
+ * etait deja toleree — mais l'invariant est vrai independamment, et le
+ * declarer coute moins cher que de le redecouvrir.
+ */
+function estUneSurcoucheDePlateforme(relativePath) {
+  return /\.(web|ios|android|native|windows|macos)\.[jt]sx?$/.test(relativePath);
+}
+
+/**
+ * Le projet utilise-t-il le transform JSX automatique ?
+ *
+ * Depuis React 17, JSX se compile sans que `React` soit dans la portee : le
+ * compilateur importe lui-meme ce qu'il faut. `import React from 'react'`
+ * devient donc inutile — mais il reste dans tous les fichiers issus d'un
+ * modele, et le signaler produit un constat par ecran sans rien apprendre.
+ *
+ * On ne le signale plus que si la version installee est anterieure a 17, ou
+ * si aucune version n'est lisible : la, l'import compte vraiment.
+ */
+function utiliseLeNouveauTransformJsx(context) {
+  const paquets = context.manifests?.['package.json']?.data;
+  const version =
+    paquets?.dependencies?.react ?? paquets?.devDependencies?.react ?? paquets?.peerDependencies?.react;
+  if (typeof version !== 'string') return false;
+
+  const majeure = Number.parseInt(version.replace(/^[^\d]*/, ''), 10);
+  return Number.isFinite(majeure) && majeure >= 17;
+}
+
+function detectUnusedImports(file, report, jsxAutomatique = false) {
   if (!['js', 'python'].includes(file.family)) return;
   const imports = extractImports(file);
   if (imports.length === 0) return;
@@ -299,6 +339,12 @@ function detectUnusedImports(file, report) {
     // `from __future__ import annotations` est une directive de compilation.
     // Elle n'est referencee nulle part, et c'est normal.
     if (entry.source === '__future__') continue;
+    // `import React` dans un fichier JSX, avec le transform automatique :
+    // inutile, mais partout, et sans consequence.
+    if (jsxAutomatique && entry.source === 'react' && /\.[jt]sx$/.test(file.relativePath)) {
+      const restants = (entry.bindings ?? entry.names).filter((n) => n !== 'React');
+      if (restants.length === 0) continue;
+    }
     // `# noqa: F401` dit exactement « cet import est inutilise, et c'est
     // voulu ». C'est la meme regle que la notre, deja repondue par l'auteur.
     if (/#\s*noqa(?::[^\n]*\bF401\b|\s*$)/.test(index.textOfLine(entry.line))) continue;
@@ -369,6 +415,14 @@ function detectUnreachableCode(file, report) {
     const current = lines[i].trim();
     if (!/^(return\b|throw\b|raise\b|break\b|continue\b|process\.exit|sys\.exit|panic\()/.test(current)) continue;
     if (!/[;)}]?\s*$/.test(current)) continue;
+    // `continue:` et `break:` sont des clefs parfaitement legales d'un objet.
+    // Un dictionnaire de traductions en contenait deux, et chacune passait
+    // pour une sortie de boucle suivie de code mort.
+    if (/^(?:break|continue|return|raise|throw)\s*:/.test(current)) continue;
+    // Un mot-clef de sortie ne peut apparaitre que dans une fonction ou une
+    // boucle. Au niveau zero d'indentation, c'est du texte : une clef, une
+    // chaine, ou un fragment de documentation.
+    if (indentOf(lines[i]) === 0 && /^(break|continue)\b/.test(current)) continue;
 
     const currentIndent = indentOf(lines[i]);
     const next = lines[i + 1];

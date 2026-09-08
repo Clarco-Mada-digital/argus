@@ -382,9 +382,10 @@ function analyzeNesting(file, report) {
 /** Empreintes de blocs normalises, pour la detection de copier-coller. */
 function collectDuplicationBlocks(file, options, blocks) {
   const minLines = options.duplicationMinLines;
+  const feuilles = lignesDeFeuilleDeStyle(file);
   const lines = file.lines
     .map((line, position) => ({ text: normalizeForHash(line), position: position + 1 }))
-    .filter((entry) => entry.text.length > 12);
+    .filter((entry) => entry.text.length > 12 && !feuilles.has(entry.position));
 
   if (lines.length < minLines) return;
 
@@ -396,6 +397,44 @@ function collectDuplicationBlocks(file, options, blocks) {
     if (!blocks.has(hash)) blocks.set(hash, []);
     blocks.get(hash).push({ file: file.relativePath, line: window[0].position, lines: minLines });
   }
+}
+
+/**
+ * Lignes appartenant a une declaration de styles.
+ *
+ * En React Native, chaque ecran declare son propre `StyleSheet.create({…})`
+ * ou son `getStyles(theme)` : c'est le motif natif, enseigne par la
+ * documentation, et il n'existe pas d'autre facon de faire. Deux ecrans qui
+ * posent tous deux `flex: 1, padding: 16` ne partagent pas du code, ils
+ * partagent une convention.
+ *
+ * Sur une application reelle, cette seule famille representait la majorite de
+ * 398 constats de duplication. Les extraire dans un module commun est parfois
+ * souhaitable, mais c'est un choix d'architecture — pas un defaut a signaler
+ * ligne par ligne.
+ */
+function lignesDeFeuilleDeStyle(file) {
+  const dedans = new Set();
+  if (!/StyleSheet\.create|getStyles\s*[=(]/.test(file.content || '')) return dedans;
+
+  const lignes = file.lines;
+  for (let i = 0; i < lignes.length; i++) {
+    if (!/StyleSheet\.create\s*\(|(?:const|let|var)\s+getStyles\s*=|function\s+getStyles\s*\(/.test(lignes[i])) continue;
+
+    // Le bloc court jusqu'a ce que les accolades ouvertes se referment.
+    let profondeur = 0;
+    let commence = false;
+    for (let k = i; k < lignes.length; k++) {
+      for (const caractere of lignes[k]) {
+        if (caractere === '{') { profondeur++; commence = true; }
+        else if (caractere === '}') profondeur--;
+      }
+      dedans.add(k + 1);
+      if (commence && profondeur <= 0) { i = k; break; }
+    }
+  }
+
+  return dedans;
 }
 
 function normalizeForHash(line) {

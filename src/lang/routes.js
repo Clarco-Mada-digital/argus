@@ -384,6 +384,21 @@ export function extractFileSystemRoutes(context) {
 
   const usesFileRouting = context.has('nextjs', 'nuxt', 'sveltekit', 'astro', 'gatsby', 'remix');
 
+  // Expo Router range ses ecrans dans `app/`, comme Next.js, mais avec ses
+  // propres conventions. Faute de les connaitre, aucune route n'etait
+  // extraite et les vingt-cinq navigations d'une application reelle etaient
+  // toutes signalees comme mortes — alors que chaque fichier cible existait.
+  if (context.has('expo-router') || estUneApplicationExpoRouter(context)) {
+    for (const file of context.files) {
+      if (!/^app\//.test(file.relativePath)) continue;
+      if (!/\.(jsx?|tsx?)$/.test(file.name)) continue;
+
+      const pattern = fileToRoutePattern(file.relativePath.slice('app/'.length), 'expo-router');
+      if (pattern === null) continue;
+      routes.push(makeRoute({ method: 'PAGE', pattern, kind: 'page', framework: 'expo-router', file, line: 1 }));
+    }
+  }
+
   if (usesFileRouting) {
     for (const { dirs, framework } of nextLike) {
       for (const dir of dirs) {
@@ -423,6 +438,22 @@ export function extractFileSystemRoutes(context) {
   return routes;
 }
 
+/**
+ * Expo Router est-il en place ?
+ *
+ * `expo-router` n'apparait pas toujours comme un framework detecte : sur les
+ * projets crees par le modele Expo, il se reconnait au point d'entree declare
+ * dans le manifeste, ou a la presence d'un `app/_layout` — la racine
+ * obligatoire de toute application qui l'utilise.
+ */
+function estUneApplicationExpoRouter(context) {
+  if (!context.has('expo')) return false;
+  const manifeste = context.manifests?.['package.json']?.data;
+  if (typeof manifeste?.main === 'string' && manifeste.main.includes('expo-router')) return true;
+  if (manifeste?.dependencies?.['expo-router'] || manifeste?.devDependencies?.['expo-router']) return true;
+  return context.files.some((f) => /^app\/_layout\.[jt]sx?$/.test(f.relativePath));
+}
+
 /** Convertit `blog/[slug]/page.tsx` en `/blog/:slug`. */
 export function fileToRoutePattern(relative, framework) {
   let route = relative.replace(/\.[^.]+$/, '');
@@ -434,6 +465,14 @@ export function fileToRoutePattern(relative, framework) {
     if (!/(^|\/)\+page$/.test(route)) return null;
     route = route.replace(/(^|\/)\+page$/, '');
     route = route.replace(/\((\w+)\)\//g, '');
+  } else if (framework === 'expo-router') {
+    // `_layout` est un composant d'habillage, pas un ecran. Les fichiers
+    // prefixes de `+` sont des routes speciales du moteur : `+not-found`
+    // repond a tout ce qui ne correspond a rien, `+html` n'existe que sur le
+    // web. Aucun des trois n'est une adresse que le code peut viser.
+    if (/(^|\/)_layout$/.test(route)) return null;
+    if (/(^|\/)\+/.test(route)) return null;
+    route = route.replace(/(^|\/)index$/, '');
   } else if (framework === 'nextjs-app') {
     if (!/(^|\/)(page|route)$/.test(route)) return null;
     route = route.replace(/(^|\/)(page|route)$/, '');

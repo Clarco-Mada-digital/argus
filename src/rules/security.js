@@ -161,6 +161,11 @@ export const SECURITY_RULES = [
     severity: 'high',
     families: ['js'],
     pattern: /dangerouslySetInnerHTML/g,
+    // Le danger vient de la *donnee*, pas de l'attribut. Un `+html.tsx`
+    // d'Expo Router injecte du CSS constant declare juste au-dessus : c'est
+    // le motif que la documentation recommande, et il etait signale au meme
+    // rang qu'une valeur venue d'un formulaire.
+    fluxDeDonnees: true,
     message: 'React desactive son echappement automatique a cet endroit.',
     suggestion: 'Assainissez le HTML (DOMPurify) ou rendez le contenu comme du texte.',
     cwe: 'CWE-79',

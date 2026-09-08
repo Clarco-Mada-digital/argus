@@ -303,14 +303,18 @@ const ROUTEURS = [
  * morts » etaient de cette nature. Les ressources statiques, elles, restent
  * verifiees — une image absente manque autant sur le bureau que sur le web.
  */
-function lesCheminsSontDesAdresses(context) {
+function lesCheminsSontDesAdresses(context, routes) {
   const plateformes = context.platforms || [];
   if (plateformes.length === 0 || plateformes.includes('web')) return true;
+  // Des routes reellement extraites valent mieux qu'un nom de dependance :
+  // Expo Router ne se declare pas toujours comme un framework detecte, mais
+  // ses ecrans sont bien la.
+  if (routes.some((r) => r.kind === 'page' || r.kind === 'server')) return true;
   return ROUTEURS.some((routeur) => context.has(routeur));
 }
 
 function detectBrokenLinks(links, routes, assets, context, report) {
-  const cheminsSignifiants = lesCheminsSontDesAdresses(context);
+  const cheminsSignifiants = lesCheminsSontDesAdresses(context, routes);
   const matchable = routes.filter((r) => r.kind !== 'mount');
   const mounts = routes.filter((r) => r.kind === 'mount').map((r) => r.pattern);
   const namedRoutes = new Set(routes.map((r) => r.handler).filter(Boolean));
@@ -337,7 +341,10 @@ function detectBrokenLinks(links, routes, assets, context, report) {
     if (/^(data|javascript|mailto|tel|sms|blob|about):/i.test(target)) continue;
 
     const resolved = target.startsWith('/') ? normalizeRoute(target) : resolveLink(target, link.file);
-    const bare = resolved.split('?')[0].split('#')[0];
+    // Un groupe de routage s'ecrit indifferemment dans la cible ou non :
+    // `/(auth)/login` et `/login` designent le meme ecran. Le moteur accepte
+    // les deux, et l'un des deux etait signale comme mort.
+    const bare = resolved.split('?')[0].split('#')[0].replace(/\/\([^)]+\)/g, '') || '/';
 
     if (assets.has(bare) || assets.has(`${bare}/`) || assets.has(bare.replace(/\/$/, ''))) continue;
     // Un chemin racine dans une page servie par un empaqueteur n'est pas
