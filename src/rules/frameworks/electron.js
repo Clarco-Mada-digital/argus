@@ -109,6 +109,41 @@ function verifierWebview(file, masque, index, report) {
 }
 
 /**
+ * Le schema est-il verifie juste avant l'ouverture ?
+ *
+ * La suggestion de cette regle decrit precisement ce garde-fou ; le signaler
+ * quand meme apprend a ignorer la regle. Deux formes le disent, et ce sont
+ * celles qu'on ecrit reellement :
+ *
+ *   if (/^https?:\/\//i.test(u)) shell.openExternal(u);
+ *   if (estUneUrlWeb(u)) shell.openExternal(u);
+ *
+ * On lit le source BRUT, pas le masque : c'est justement le litteral `http`
+ * qu'on cherche, et le masquage l'efface.
+ *
+ * La fenetre s'arrete a trois lignes : au-dela, un `http` qui traine plus haut
+ * dans la fonction ne dit plus rien de cet appel-ci.
+ */
+// Le `?` est LITTERAL : dans `/^https?:\/\//` le caractere qui suit `https`
+// est un point d'interrogation, pas deux-points. Sans lui, la forme la plus
+// courante du garde-fou passait a travers.
+const GARDE_SCHEMA = /https?\s*\??\s*:|\bprotocol\s*===?|\bstartsWith\s*\(\s*["'`]https?/i;
+const GARDE_NOMMEE = /\b(?:is|est)[A-Za-z_$]*(?:Url|Uri|Lien|Link)[A-Za-z_$]*\s*\(/;
+
+function ouvertureGardee(file, offset) {
+  const toutes = file.content.split('\n');
+  const avant = file.content.slice(0, offset).split('\n');
+  const debut = Math.max(0, avant.length - 4);
+  // On regarde AUSSI vers l'avant, jusqu'a la fin de l'appel : le schema peut
+  // etre fixe par l'argument lui-meme. `shell.openExternal('https://…/q=' +
+  // encodeURIComponent(x))` concatene sur un prefixe litteral — la partie
+  // variable ne peut plus changer le protocole.
+  const fenetre = toutes.slice(debut, avant.length).join('\n')
+    + file.content.slice(offset, offset + 200);
+  return GARDE_SCHEMA.test(fenetre) || GARDE_NOMMEE.test(fenetre);
+}
+
+/**
  * `shell.openExternal` sur une valeur non litterale.
  *
  * La fonction ouvre l'URL avec le *gestionnaire du systeme*. Sur une chaine
@@ -121,6 +156,8 @@ function verifierOuvertureExterne(file, masque, index, report) {
     // Le masquage vide les chaines : une URL litterale ne laisse que des
     // espaces et des guillemets, sans le moindre identifiant.
     if (!/[A-Za-z_$][\w$]*/.test(argument)) continue;
+    // Schema deja verifie a cote : l'appel est protege.
+    if (ouvertureGardee(file, m.index)) continue;
 
     const position = index.position(m.index);
     report(

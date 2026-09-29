@@ -273,3 +273,112 @@ test('electron : RegExp.exec n\'est pas child_process.exec', async () => {
 
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test('electron : un prop `action` de composant React n\'est pas un lien', async () => {
+  // `action` ne designe une cible de navigation que sur un <form>. En JSX,
+  // c'est un nom de prop tres courant — un menu contextuel decrit ses gestes
+  // ainsi. Les cinq « liens internes morts » d'Orbit etaient tous de ce genre.
+  const dir = projetElectron({
+    'src/GuestContextMenu.jsx': [
+      'export default function Menu() {',
+      '  return (',
+      '    <div>',
+      '      <IconAction label="Precedent" action="back" />',
+      '      <IconAction label="Suivant" action="forward" />',
+      '      <IconAction label="Copier" action="copyPageUrl" />',
+      '    </div>',
+      '  );',
+      '}',
+    ].join('\n'),
+  });
+
+  const rapport = await scan(dir);
+  const morts = rapport.findings.filter((f) => f.ruleId === 'ROUTE-BROKEN-LINK');
+  assert.deepEqual(morts, [], 'un prop JSX ne doit pas etre lu comme une URL');
+});
+
+test('electron : `action` sur un vrai <form> reste verifie', async () => {
+  // Le correctif ne doit pas rendre la regle aveugle : sur un <form>, une
+  // cible qui ne mene nulle part reste un lien mort.
+  const dir = projetElectron({
+    'public/index.html': [
+      '<!doctype html>',
+      '<html><body>',
+      '  <form action="/page-qui-nexiste-pas" method="post"></form>',
+      '</body></html>',
+    ].join('\n'),
+    'src/routes.jsx': "export const routes = [{ path: '/', element: null }];",
+  });
+
+  const rapport = await scan(dir);
+  const morts = rapport.findings.filter((f) => f.ruleId === 'ROUTE-BROKEN-LINK');
+  assert.ok(
+    morts.some((f) => String(f.message).includes('/page-qui-nexiste-pas')),
+    'un <form action> vers le vide doit rester signale',
+  );
+});
+
+test('electron : openExternal garde un schema verifie', async () => {
+  // La suggestion de la regle decrit ce garde-fou : le signaler quand meme
+  // apprend a l'ignorer. Neuf des dix constats d'Orbit etaient de ce type.
+  const dir = projetElectron({
+    'main.js': [
+      "const { shell } = require('electron');",
+      '',
+      'function ouvrirRegex(url) {',
+      '  if (/^https?:\\/\\//i.test(url)) shell.openExternal(url);',
+      '}',
+      '',
+      'function ouvrirStartsWith(url) {',
+      "  if (url && (url.startsWith('http://') || url.startsWith('https://'))) {",
+      '    shell.openExternal(url);',
+      '  }',
+      '}',
+      '',
+      'function ouvrirViaAide(params) {',
+      '  if (estUneUrlWeb(params.linkURL)) shell.openExternal(params.linkURL);',
+      '}',
+    ].join('\n'),
+  });
+
+  const rapport = await scan(dir);
+  const constats = rapport.findings.filter((f) => f.ruleId === 'ELECTRON-OPEN-EXTERNAL');
+  assert.deepEqual(constats, [], 'un appel deja garde ne doit pas etre signale');
+});
+
+test('electron : openExternal SANS garde reste signale', async () => {
+  // Le contre-exemple qui donne sa valeur au test precedent : sans
+  // verification, `file://` ou un chemin executable passent au systeme.
+  const dir = projetElectron({
+    'main.js': [
+      "const { shell } = require('electron');",
+      '',
+      'function menu(params) {',
+      '  return [{ label: "Ouvrir", click: () => shell.openExternal(params.linkURL) }];',
+      '}',
+    ].join('\n'),
+  });
+
+  const rapport = await scan(dir);
+  const constats = rapport.findings.filter((f) => f.ruleId === 'ELECTRON-OPEN-EXTERNAL');
+  assert.equal(constats.length, 1, 'un appel non garde doit rester signale');
+});
+
+test('electron : un prefixe litteral fixe le schema', async () => {
+  // `shell.openExternal('https://…/q=' + encodeURIComponent(x))` : la partie
+  // variable ne peut plus changer le protocole. Signale tel quel, ce constat
+  // pousse a envelopper du code deja sur.
+  const dir = projetElectron({
+    'main.js': [
+      "const { shell } = require('electron');",
+      '',
+      'function rechercher(selection) {',
+      "  shell.openExternal('https://www.google.com/search?q=' + encodeURIComponent(selection));",
+      '}',
+    ].join('\n'),
+  });
+
+  const rapport = await scan(dir);
+  const constats = rapport.findings.filter((f) => f.ruleId === 'ELECTRON-OPEN-EXTERNAL');
+  assert.deepEqual(constats, [], 'un prefixe litteral en https fixe le schema');
+});

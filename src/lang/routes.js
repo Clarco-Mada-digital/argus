@@ -573,7 +573,13 @@ export function extractLinks(file) {
   const source = file.content;
 
   const patterns = [
-    { re: /\b(?:href|action)\s*=\s*["']([^"'{}<>\s]+)["']/g, kind: 'href' },
+    { re: /\bhref\s*=\s*["']([^"'{}<>\s]+)["']/g, kind: 'href' },
+    // `action` ne designe une cible de navigation que sur un <form>. Ailleurs,
+    // c'est un nom de prop comme un autre — et en JSX, c'en est un tres
+    // courant : `<IconAction action="back" />` decrit un geste, pas une URL.
+    // Sur une application Electron reelle, les cinq « liens internes morts »
+    // du rapport etaient tous des props de ce genre.
+    { re: /<form\b[^>]*?\baction\s*=\s*["']([^"'{}<>\s]+)["']/gi, kind: 'href' },
     { re: /\b(?:src|poster|data-src)\s*=\s*["']([^"'{}<>\s]+)["']/g, kind: 'asset' },
     { re: /\bto\s*=\s*(?:["']([^"'{}<>\s]+)["']|\{\s*["']([^"']+)["']\s*\})/g, kind: 'link' },
     { re: /\b(?:router|history|navigate|Router)\s*\.\s*(?:push|replace|navigate|go)\s*\(\s*["'`]([^"'`]+)["'`]/g, kind: 'nav' },
