@@ -138,9 +138,54 @@ function ouvertureGardee(file, offset) {
   // etre fixe par l'argument lui-meme. `shell.openExternal('https://…/q=' +
   // encodeURIComponent(x))` concatene sur un prefixe litteral — la partie
   // variable ne peut plus changer le protocole.
+  // Vers l'avant : la ligne de l'appel SEULEMENT. Deux cents caracteres
+  // debordaient sur la fonction suivante, dont la garde taisait cet appel-ci.
+  const finLigne = file.content.indexOf('\n', offset);
   const fenetre = toutes.slice(debut, avant.length).join('\n')
-    + file.content.slice(offset, offset + 200);
+    + file.content.slice(offset, finLigne < 0 ? offset + 200 : Math.min(finLigne, offset + 400));
   return GARDE_SCHEMA.test(fenetre) || GARDE_NOMMEE.test(fenetre);
+}
+
+/**
+ * Garde EN AMONT, plus haut dans la fonction : on refuse tout ce qui n'est pas
+ * http(s) puis on sort.
+ *
+ *   if (!(url.startsWith('http://') || url.startsWith('https://'))) {
+ *     return { action: 'deny' };
+ *   }
+ *   …
+ *   shell.openExternal(url);
+ *
+ * Vu sur Orbit : un gestionnaire de fenetres de vingt lignes ou le schema est
+ * verifie en tete, puis l'URL routee selon des regles. La fenetre de trois
+ * lignes ne pouvait pas le voir.
+ *
+ * Exigences, pour ne pas taire un vrai probleme :
+ *   • la condition porte sur la MEME variable que l'appel ;
+ *   • elle est NIEE (on parle bien de ce qu'on refuse) ;
+ *   • un `return` (ou `throw`) suit dans les trois lignes ;
+ *   • on ne remonte pas au-dela du debut de la fonction de premier niveau,
+ *     ni de 80 lignes ;
+ *   • la variable n'est pas reaffectee entre la garde et l'appel.
+ */
+function gardeEnAmont(file, offset, argument) {
+  const ident = /^[A-Za-z_$][\w$]*/.exec(argument)?.[0];
+  if (!ident || /^(?:this|await|new)$/.test(ident)) return false;
+  const lignes = file.content.slice(0, offset).split('\n');
+  const derniere = lignes.length - 1;
+  const mot = new RegExp(`(^|[^\\w$.])${ident.replace(/\$/g, '\\$')}\\b`);
+  const reaffecte = new RegExp(`(^|[^\\w$.])${ident.replace(/\$/g, '\\$')}\\s*=[^=]`);
+  for (let i = derniere - 1; i >= Math.max(0, derniere - 80); i -= 1) {
+    const ligne = lignes[i];
+    // Debut d'une fonction de premier niveau : on ne sort pas de la portee.
+    if (/^(?:export\s+)?(?:async\s+)?function\b|^(?:export\s+)?(?:const|let|var)\s+[\w$]+\s*=\s*(?:async\s*)?(?:\(|function)/.test(ligne)) return false;
+    if (reaffecte.test(ligne) && !/\b(?:const|let|var)\b/.test(ligne)) return false;
+    if (!mot.test(ligne) || !GARDE_SCHEMA.test(ligne)) continue;
+    if (!/!\s*\(|!\s*[\w$.]+\.startsWith|!==|!\s*\/\^?https/.test(ligne)) continue;
+    const suite = lignes.slice(i, i + 4).join('\n');
+    if (/\b(?:return|throw)\b/.test(suite)) return true;
+  }
+  return false;
 }
 
 /**
@@ -158,6 +203,8 @@ function verifierOuvertureExterne(file, masque, index, report) {
     if (!/[A-Za-z_$][\w$]*/.test(argument)) continue;
     // Schema deja verifie a cote : l'appel est protege.
     if (ouvertureGardee(file, m.index)) continue;
+    // … ou verifie plus haut dans la fonction, avec sortie anticipee.
+    if (gardeEnAmont(file, m.index, argument)) continue;
 
     const position = index.position(m.index);
     report(

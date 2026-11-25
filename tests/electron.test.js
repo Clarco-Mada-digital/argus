@@ -382,3 +382,75 @@ test('electron : un prefixe litteral fixe le schema', async () => {
   const constats = rapport.findings.filter((f) => f.ruleId === 'ELECTRON-OPEN-EXTERNAL');
   assert.deepEqual(constats, [], 'un prefixe litteral en https fixe le schema');
 });
+
+test('electron : garde en amont avec sortie anticipee', async () => {
+  // Vu sur Orbit : le schema est verifie en tete du gestionnaire, puis l'URL
+  // est routee vingt lignes plus bas. Signaler cet appel apprenait a ignorer
+  // la regle.
+  const dir = projetElectron({
+    'main.js': [
+      "const { shell } = require('electron');",
+      '',
+      'function ouvrir(url, regle) {',
+      "  if (!(url.startsWith('http://') || url.startsWith('https://'))) {",
+      "    return { action: 'deny' };",
+      '  }',
+      '  const a = 1;',
+      '  const b = 2;',
+      '  const c = 3;',
+      '  const d = 4;',
+      '  if (regle) {',
+      '    shell.openExternal(url);',
+      '  }',
+      '}',
+    ].join('\n'),
+  });
+  const rapport = await scan(dir);
+  const constats = rapport.findings.filter((f) => f.ruleId === 'ELECTRON-OPEN-EXTERNAL');
+  assert.deepEqual(constats, [], 'la garde en tete de fonction protege l\'appel');
+});
+
+test('electron : une garde sur une AUTRE variable, ou suivie d\'une reaffectation, ne protege pas', async () => {
+  const dir = projetElectron({
+    'main.js': [
+      "const { shell } = require('electron');",
+      '',
+      'function a(url, autre) {',
+      "  if (!autre.startsWith('https://')) {",
+      '    return;',
+      '  }',
+      '  const x = 1;',
+      '  const y = 2;',
+      '  shell.openExternal(url);',
+      '}',
+      '',
+      'function b(url, page) {',
+      "  if (!url.startsWith('https://')) {",
+      '    return;',
+      '  }',
+      '  url = page.lien;',
+      '  const z = 3;',
+      '  shell.openExternal(url);',
+      '}',
+    ].join('\n'),
+  });
+  const rapport = await scan(dir);
+  const constats = rapport.findings.filter((f) => f.ruleId === 'ELECTRON-OPEN-EXTERNAL');
+  assert.equal(constats.length, 2, 'ces deux appels restent signales');
+});
+
+test('code minifie (bibliotheque empaquetee) : ni securite ni accessibilite', async () => {
+  // Vu sur Orbit : des pilotes de base livres en un fichier esbuild de 19 000
+  // caracteres par ligne remontaient des « <a> sans nom accessible » tires de
+  // chaines HTML de la bibliotheque.
+  const bruit = 'var a=function(){return 1};'.repeat(400);
+  const dir = projetElectron({
+    'dist-drivers/pilote.cjs': `"use strict";${bruit}var h='<a href="#"></a>';${bruit}\nmodule.exports=h;\n`,
+    'src/vue.html': '<a href="/x"></a>\n',
+  });
+  const rapport = await scan(dir);
+  const pilote = rapport.findings.filter((f) => /pilote\.cjs$/.test(f.file));
+  assert.deepEqual(pilote.map((f) => f.ruleId), [], 'un fichier minifie est ignore');
+  // Le contre-exemple : le meme lien dans du HTML ecrit a la main reste signale.
+  assert.ok(rapport.findings.some((f) => /vue\.html$/.test(f.file) && f.ruleId === 'A11Y-NO-ACCESSIBLE-NAME'));
+});

@@ -218,10 +218,21 @@ function graduerParLeFlux(file, rule, match, index, position) {
   })();
   const affectation = /[^=!<>]=(?![=>])/.exec(masqueComplet.slice(match.index, finDeLigne));
   const debut = affectation ? match.index + affectation.index + affectation[0].length : match.index;
+  // Une instruction peut continuer a la ligne : `x.innerHTML =` en fin de
+  // ligne, puis `'<svg…' +` sur les suivantes. Couper au premier saut de
+  // ligne laissait une valeur VIDE, prise pour inconnue — donc signalee. On
+  // continue tant que la ligne finit par un operateur ou que la suivante
+  // commence par une suite (`+`, `.`, `?`, `:`). Le masque sert de reference :
+  // un `+` dans une chaine ne compte pas.
   const finInstruction = (() => {
     for (let i = debut; i < file.content.length; i++) {
       const c = file.content[i];
-      if (c === ';' || c === '\n') return i;
+      if (c === ';') return i;
+      if (c !== '\n') continue;
+      const avantSaut = masqueComplet.slice(debut, i).trimEnd();
+      const apres = masqueComplet.slice(i + 1).trimStart();
+      const continue_ = avantSaut.length === 0 || /[=+\-*/(,?:&|]$/.test(avantSaut) || /^[+.?:]/.test(apres);
+      if (!continue_) return i;
     }
     return file.content.length;
   })();

@@ -99,6 +99,15 @@ class SourceFile {
       return true;
     }
 
+    // Code MINIFIE ou empaquete (esbuild, rollup, terser…) : des lignes de
+    // milliers de caracteres. Vu sur Orbit : deux pilotes de base de donnees
+    // livres tels quels (`mssql-12.8.1.cjs`, 19 000 caracteres par ligne)
+    // produisaient des constats d'accessibilite sur des chaines HTML
+    // enfouies dans le code de la bibliotheque — que personne n'ecrit ni ne
+    // relit. Seuil prudent : une ligne de plus de 5 000 caracteres dans les
+    // vingt premieres, ou une moyenne au-dela de 1 000.
+    if (/\.(?:c|m)?js$/i.test(this.name) && estMinifie(this.content)) return true;
+
     const head = this.content.slice(0, 500);
     return (
       /@generated|GENERATED FILE|DO NOT EDIT|auto-generated/i.test(head) ||
@@ -110,6 +119,13 @@ class SourceFile {
       /webpackBootstrap|__webpack_require__|esbuild-bundle/.test(head)
     );
   }
+}
+
+function estMinifie(contenu) {
+  if (contenu.length < 20000) return false;
+  const lignes = contenu.split('\n');
+  if (lignes.slice(0, 20).some((l) => l.length > 5000)) return true;
+  return contenu.length / lignes.length > 1000;
 }
 
 /**

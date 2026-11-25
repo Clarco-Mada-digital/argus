@@ -138,6 +138,33 @@ test('terrain : innerHTML litteral n\'expose rien', async () => {
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
+test('terrain : innerHTML litteral ecrit sur plusieurs lignes', async () => {
+  // Vu sur Orbit : une icone SVG constante, concatenee sur trois lignes. La
+  // lecture s'arretait au premier saut de ligne — valeur vide, donc signalee.
+  // Le contre-exemple garde la regle honnete : une variable glissee dans la
+  // suite reste signalee.
+  const dir = projetDjango({
+    'static/app.js': [
+      'export function init(pill, nom) {',
+      '  pill.innerHTML =',
+      "    '<svg viewBox=\"0 0 24 24\">' +",
+      "    '<path d=\"M12 4v10\" /></svg>';",
+      '  pill.title = nom;',
+      '  pill.outerHTML =',
+      "    '<b>' +",
+      '    nom;',
+      '}',
+    ].join('\n'),
+  });
+
+  const rapport = await scan(dir, { noHistory: true });
+  const html = rapport.findings.filter((f) => f.ruleId === 'SEC-INNERHTML');
+  assert.equal(html.length, 1, 'seule la valeur variable doit remonter');
+  assert.equal(html[0].line, 6);
+
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
 test('terrain : du JSON interpole dans un <script> est une faille', async () => {
   // Faille reelle qu'Argus n'avait pas vue. Un JSON valide n'est pas sur
   // dans un <script> : la chaine « </script » y ferme la balise.
